@@ -12,10 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package catalog
 
-import "github.com/venicegeo/pzsvc-catalog/cmd"
+import "gopkg.in/redis.v3"
 
-func main() {
-	cmd.Execute()
+var client *redis.Client
+
+// RedisClient is a factory method for a Redis instance
+func RedisClient(options *redis.Options) *redis.Client {
+	if client == nil {
+		if options == nil {
+			options = &redis.Options{Addr: "127.0.0.1:6379"}
+		}
+		client = redis.NewClient(options)
+	}
+	return client
 }
