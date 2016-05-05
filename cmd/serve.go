@@ -15,11 +15,14 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/spf13/cobra"
+	"github.com/venicegeo/pzsvc-catalog/catalog"
 
 	"gopkg.in/redis.v3"
 )
@@ -44,6 +47,8 @@ func serve() {
 		switch request.URL.Path {
 		case "/":
 			fmt.Fprintf(writer, "Hi")
+		case "/discover":
+			discoverFunc(writer, request, client)
 		case "/select":
 			selectFunc(writer, request, client)
 		case "/help":
@@ -54,6 +59,38 @@ func serve() {
 	})
 
 	log.Fatal(http.ListenAndServe(portStr, nil))
+}
+
+// DiscoverResponse is the response to a Discover query
+type DiscoverResponse struct {
+	Count  int                       `json:"count"`
+	Images []catalog.ImageDescriptor `json:"images"`
+}
+
+func discoverFunc(writer http.ResponseWriter, request *http.Request, client *redis.Client) {
+	id := catalog.ImageDescriptor{
+		FileFormat:   request.FormValue("fileFormat"),
+		AcquiredDate: request.FormValue("acquiredDate")}
+
+	if bitDepth, err := strconv.ParseInt(request.FormValue("bitDepth"), 0, 32); err == nil {
+		id.BitDepth = int(bitDepth)
+	}
+
+	if fileSize, err := strconv.ParseInt(request.FormValue("fileSize"), 0, 64); err == nil {
+		id.FileSize = fileSize
+	}
+
+	if cloudCover, err := strconv.ParseFloat(request.FormValue("cloudCover"), 64); err == nil {
+		id.CloudCover = cloudCover
+	}
+
+	if beachfrontScore, err := strconv.ParseFloat(request.FormValue("beachfrontScore"), 64); err == nil {
+		id.BeachfrontScore = beachfrontScore
+	}
+	images := catalog.GetImages("test-images", &id)
+	responseDoc := DiscoverResponse{Count: len(images), Images: images}
+	bytes, _ := json.Marshal(responseDoc)
+	writer.Write(bytes)
 }
 
 func selectFunc(writer http.ResponseWriter, request *http.Request, client *redis.Client) {
