@@ -20,6 +20,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/pzsvc-catalog/catalog"
@@ -87,6 +88,15 @@ func discoverFunc(writer http.ResponseWriter, request *http.Request, client *red
 	if beachfrontScore, err := strconv.ParseFloat(request.FormValue("beachfrontScore"), 64); err == nil {
 		id.BeachfrontScore = beachfrontScore
 	}
+
+	bboxString := request.FormValue("bbox")
+	coords := strings.Split(bboxString, ",")
+	for _, coord := range coords {
+		if coordValue, err := strconv.ParseFloat(coord, 64); err == nil {
+			id.BoundingBox = append(id.BoundingBox, coordValue)
+		}
+	}
+
 	images := catalog.GetImages("test-images", &id)
 	responseDoc := DiscoverResponse{Count: len(images), Images: images}
 	bytes, _ := json.Marshal(responseDoc)

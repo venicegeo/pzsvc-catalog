@@ -93,5 +93,8 @@ func (id *ImageDescriptor) pass(test *ImageDescriptor) bool {
 			return false
 		}
 	}
+	if (len(test.BoundingBox) > 0) && !test.BoundingBox.Overlaps(id.BoundingBox) {
+		return false
+	}
 	return true
 }
