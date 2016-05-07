@@ -26,32 +26,49 @@ import (
 	"github.com/venicegeo/pzsvc-catalog/catalog"
 )
 
-func harvestPlanet() {
-
-	endpoints := [1]string{"v0/scenes/ortho/?count=1000"}
-	// ,
-	// 	"v0/scenes/rapideye/?count=1000"}
-	for _, endpoint := range endpoints {
-		var err error
-		for err == nil {
-			var (
-				next        string
-				responseURL *url.URL
-			)
-			next, err = harvestPlanetEndpoint(endpoint)
-			if (len(next) == 0) || (err != nil) {
-				break
-			}
-			responseURL, err = url.Parse(next)
-			endpoint = responseURL.RequestURI()
+func harvestPlanetOrtho() {
+	endpoint := "v0/scenes/ortho/?count=1000"
+	var err error
+	for err == nil {
+		var (
+			next        string
+			responseURL *url.URL
+		)
+		next, err = harvestPlanetEndpoint(endpoint, storePlanetOrtho)
+		if (len(next) == 0) || (err != nil) {
+			break
 		}
-		if err != nil {
-			log.Print(err.Error)
-		}
+		responseURL, err = url.Parse(next)
+		endpoint = responseURL.RequestURI()
+	}
+	if err != nil {
+		log.Print(err.Error)
 	}
 }
 
-func harvestPlanetEndpoint(endpoint string) (string, error) {
+type harvestCallback func(*geojson.FeatureCollection)
+
+func harvestPlanetRapidEye() {
+	endpoint := "v0/scenes/rapideye/?count=1000"
+	var err error
+	for err == nil {
+		var (
+			next        string
+			responseURL *url.URL
+		)
+		next, err = harvestPlanetEndpoint(endpoint, storePlanetRapidEye)
+		if (len(next) == 0) || (err != nil) {
+			break
+		}
+		responseURL, err = url.Parse(next)
+		endpoint = responseURL.RequestURI()
+	}
+	if err != nil {
+		log.Print(err.Error)
+	}
+}
+
+func harvestPlanetEndpoint(endpoint string, callback harvestCallback) (string, error) {
 	log.Printf("Harvesting %v", endpoint)
 	var (
 		response       *http.Response
@@ -66,13 +83,12 @@ func harvestPlanetEndpoint(endpoint string) (string, error) {
 	if planetResponse, fc, err = planet.UnmarshalResponse(response); err != nil {
 		return "", err
 	}
-	storeResults(fc)
+	callback(fc)
 
 	return planetResponse.Links.Next, nil
 }
 
-func storeResults(fc *geojson.FeatureCollection) {
-	client := catalog.RedisClient(nil)
+func storePlanetOrtho(fc *geojson.FeatureCollection) {
 	for _, curr := range fc.Features {
 		key := "test-image-pl:" + curr.ID
 		descriptor := catalog.ImageDescriptor{
@@ -90,6 +106,27 @@ func storeResults(fc *geojson.FeatureCollection) {
 		}
 
 		bytes, _ := json.Marshal(descriptor)
+
+		client := catalog.RedisClient(nil)
+		client.Set(key, string(bytes), 0)
+		client.SAdd("test-images", key)
+	}
+}
+
+func storePlanetRapidEye(fc *geojson.FeatureCollection) {
+	for _, curr := range fc.Features {
+		key := "test-image-pl:" + curr.ID
+		descriptor := catalog.ImageDescriptor{
+			CloudCover:    curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64),
+			Path:          curr.Properties["links"].(map[string]interface{})["self"].(string),
+			ThumbnailPath: curr.Properties["links"].(map[string]interface{})["thumbnail"].(string),
+			AcquiredDate:  curr.Properties["acquired"].(string),
+			BoundingBox:   curr.ForceBbox(),
+			ID:            curr.ID}
+
+		bytes, _ := json.Marshal(descriptor)
+
+		client := catalog.RedisClient(nil)
 		client.Set(key, string(bytes), 0)
 		client.SAdd("test-images", key)
 	}
@@ -103,6 +140,7 @@ Harvest image metadata from Planet Labs
 
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
-		harvestPlanet()
+		// harvestPlanetOrtho()
+		harvestPlanetRapidEye()
 	},
 }
