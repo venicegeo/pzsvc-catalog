@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -25,24 +26,49 @@ import (
 	"github.com/venicegeo/pzsvc-catalog/catalog"
 )
 
-func harvestPlanet() error {
+func harvestPlanet() {
+
+	endpoints := [1]string{"v0/scenes/ortho/?count=1000"}
+	// ,
+	// 	"v0/scenes/rapideye/?count=1000"}
+	for _, endpoint := range endpoints {
+		var err error
+		for err == nil {
+			var (
+				next        string
+				responseURL *url.URL
+			)
+			next, err = harvestPlanetEndpoint(endpoint)
+			if (len(next) == 0) || (err != nil) {
+				break
+			}
+			responseURL, err = url.Parse(next)
+			endpoint = responseURL.RequestURI()
+		}
+		if err != nil {
+			log.Print(err.Error)
+		}
+	}
+}
+
+func harvestPlanetEndpoint(endpoint string) (string, error) {
+	log.Printf("Harvesting %v", endpoint)
 	var (
 		response       *http.Response
 		fc             *geojson.FeatureCollection
 		planetResponse planet.Response
 		err            error
 	)
-	if response, err = planet.DoRequest("GET", "v0/scenes/ortho/"); err != nil {
-		return err
+	if response, err = planet.DoRequest("GET", endpoint); err != nil {
+		return "", err
 	}
 
 	if planetResponse, fc, err = planet.UnmarshalResponse(response); err != nil {
-		return err
+		return "", err
 	}
-
 	storeResults(fc)
-	log.Printf("%#v\n", planetResponse)
-	return err
+
+	return planetResponse.Links.Next, nil
 }
 
 func storeResults(fc *geojson.FeatureCollection) {
@@ -66,7 +92,6 @@ func storeResults(fc *geojson.FeatureCollection) {
 		bytes, _ := json.Marshal(descriptor)
 		client.Set(key, string(bytes), 0)
 		client.SAdd("test-images", key)
-		log.Printf("Added %v\n", key)
 	}
 }
 
@@ -78,8 +103,6 @@ Harvest image metadata from Planet Labs
 
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := harvestPlanet(); err != nil {
-			log.Fatal(err)
-		}
+		harvestPlanet()
 	},
 }
