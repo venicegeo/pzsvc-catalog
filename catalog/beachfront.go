@@ -21,6 +21,13 @@ import (
 	"github.com/venicegeo/geojson-go/geojson"
 )
 
+// ImageDescriptors is the response to a Discover query
+type ImageDescriptors struct {
+	Count      int               `json:"count"`
+	StartIndex int               `json:"startIndex"`
+	Images     []ImageDescriptor `json:"images"`
+}
+
 // ImageDescriptor is the descriptor of a specific catalog entry
 type ImageDescriptor struct {
 	ID              string              `json:"id"`
@@ -37,26 +44,40 @@ type ImageDescriptor struct {
 }
 
 // GetImages returns images for the given set matching the criteria in the options
-func GetImages(set string, options *ImageDescriptor) []ImageDescriptor {
+func GetImages(set string, options *ImageDescriptor) (ImageDescriptors, string) {
 	var (
-		result   []ImageDescriptor
-		idm      string
-		idmBytes []byte
+		result     ImageDescriptors
+		bytes      []byte
+		resultText string
 	)
 	red := RedisClient(nil)
 
-	members := client.SMembers(set)
-	for _, curr := range members.Val() {
-		var cid ImageDescriptor
-
-		idm = red.Get(curr).Val()
-		idmBytes = []byte(idm)
-		json.Unmarshal(idmBytes, &cid)
-		if cid.pass(options) {
-			result = append(result, cid)
+	bytes, _ = json.Marshal(options)
+	key := set + string(bytes)
+	queryExists := client.Exists(key)
+	if queryExists.Val() {
+		resultText = red.Get(key).Val()
+		json.Unmarshal([]byte(resultText), &result)
+	} else {
+		members := client.SMembers(set)
+		for _, curr := range members.Val() {
+			var (
+				cid      ImageDescriptor
+				idString string
+			)
+			idString = red.Get(curr).Val()
+			json.Unmarshal([]byte(idString), &cid)
+			if cid.pass(options) {
+				result.Images = append(result.Images, cid)
+			}
 		}
+		result.Count = len(result.Images)
+		bytes, _ = json.Marshal(result)
+		resultText = string(bytes)
+		duration, _ := time.ParseDuration("24h")
+		client.Set(key, resultText, duration)
 	}
-	return result
+	return result, resultText
 }
 
 // pass returns true if the receiving object complies
@@ -64,19 +85,6 @@ func GetImages(set string, options *ImageDescriptor) []ImageDescriptor {
 func (id *ImageDescriptor) pass(test *ImageDescriptor) bool {
 	if test == nil {
 		return false
-	}
-	if test.AcquiredDate != "" {
-		var (
-			idTime, testTime time.Time
-			err              error
-		)
-		if idTime, err = time.Parse(time.RFC3339, id.AcquiredDate); err != nil {
-			if testTime, err = time.Parse(time.RFC3339, test.AcquiredDate); err != nil {
-				if idTime.Before(testTime) {
-					return false
-				}
-			}
-		}
 	}
 	if test.CloudCover != 0 && id.CloudCover != 0 {
 		if id.CloudCover > test.CloudCover {
@@ -91,6 +99,19 @@ func (id *ImageDescriptor) pass(test *ImageDescriptor) bool {
 	if test.BeachfrontScore != 0 && id.BeachfrontScore != 0 {
 		if id.BeachfrontScore < test.BeachfrontScore {
 			return false
+		}
+	}
+	if test.AcquiredDate != "" {
+		var (
+			idTime, testTime time.Time
+			err              error
+		)
+		if idTime, err = time.Parse(time.RFC3339, id.AcquiredDate); err == nil {
+			if testTime, err = time.Parse(time.RFC3339, test.AcquiredDate); err == nil {
+				if idTime.Before(testTime) {
+					return false
+				}
+			}
 		}
 	}
 	if (len(test.BoundingBox) > 0) && !test.BoundingBox.Overlaps(id.BoundingBox) {

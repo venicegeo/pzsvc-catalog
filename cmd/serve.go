@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -62,13 +63,8 @@ func serve() {
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
 
-// DiscoverResponse is the response to a Discover query
-type DiscoverResponse struct {
-	Count  int                       `json:"count"`
-	Images []catalog.ImageDescriptor `json:"images"`
-}
-
 func discoverFunc(writer http.ResponseWriter, request *http.Request, client *redis.Client) {
+	var responseBytes []byte
 	id := catalog.ImageDescriptor{
 		FileFormat:   request.FormValue("fileFormat"),
 		AcquiredDate: request.FormValue("acquiredDate")}
@@ -97,10 +93,21 @@ func discoverFunc(writer http.ResponseWriter, request *http.Request, client *red
 		}
 	}
 
-	images := catalog.GetImages("test-images", &id)
-	responseDoc := DiscoverResponse{Count: len(images), Images: images}
-	bytes, _ := json.Marshal(responseDoc)
-	writer.Write(bytes)
+	images, responseString := catalog.GetImages("test-images", &id)
+	if count, err := strconv.ParseInt(request.FormValue("count"), 0, 32); err == nil {
+		startIndex := 0
+		if resp, err := strconv.ParseInt(request.FormValue("startIndex"), 0, 32); err == nil {
+			startIndex = int(resp)
+		}
+		images.Count = len(images.Images)
+		images.StartIndex = startIndex
+		images.Images = images.Images[startIndex:int(math.Max(float64(startIndex+int(count)), float64(count)))]
+		responseBytes, _ = json.Marshal(images)
+	} else {
+		responseBytes = []byte(responseString)
+	}
+
+	writer.Write(responseBytes)
 }
 
 func selectFunc(writer http.ResponseWriter, request *http.Request, client *redis.Client) {
