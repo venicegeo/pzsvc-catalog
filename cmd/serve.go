@@ -21,9 +21,9 @@ import (
 	"math"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-catalog/catalog"
 
 	"gopkg.in/redis.v3"
@@ -51,8 +51,6 @@ func serve() {
 			fmt.Fprintf(writer, "Hi")
 		case "/discover":
 			discoverFunc(writer, request, client)
-		case "/select":
-			selectFunc(writer, request, client)
 		case "/help":
 			fmt.Fprintf(writer, "We're sorry, help is not yet implemented.\n")
 		default:
@@ -64,56 +62,66 @@ func serve() {
 }
 
 func discoverFunc(writer http.ResponseWriter, request *http.Request, client *redis.Client) {
-	var responseBytes []byte
-	id := catalog.ImageDescriptor{
-		FileFormat:   request.FormValue("fileFormat"),
-		AcquiredDate: request.FormValue("acquiredDate")}
+	var (
+		responseBytes []byte
+		count         int
+	)
+	properties := make(map[string]interface{})
+
+	// Give ourselves a resonable default and maximum
+	if parsedCount, err := strconv.ParseInt(request.FormValue("count"), 0, 32); err == nil {
+		count = int(math.Min(float64(parsedCount), 1000))
+	} else {
+		count = 20
+	}
+
+	if fileFormat := request.FormValue("fileFormat"); fileFormat != "" {
+		properties["fileFormat"] = fileFormat
+	}
+
+	if acquiredDate := request.FormValue("acquiredDate"); acquiredDate != "" {
+		properties["acquiredDate"] = acquiredDate
+	}
 
 	if bitDepth, err := strconv.ParseInt(request.FormValue("bitDepth"), 0, 32); err == nil {
-		id.BitDepth = int(bitDepth)
+		properties["bitDepth"] = int(bitDepth)
 	}
 
 	if fileSize, err := strconv.ParseInt(request.FormValue("fileSize"), 0, 64); err == nil {
-		id.FileSize = fileSize
+		properties["fileSize"] = fileSize
 	}
 
 	if cloudCover, err := strconv.ParseFloat(request.FormValue("cloudCover"), 64); err == nil {
-		id.CloudCover = cloudCover
+		properties["cloudCover"] = cloudCover
 	}
 
 	if beachfrontScore, err := strconv.ParseFloat(request.FormValue("beachfrontScore"), 64); err == nil {
-		id.BeachfrontScore = beachfrontScore
+		properties["beachfrontScore"] = beachfrontScore
 	}
 
-	bboxString := request.FormValue("bbox")
-	coords := strings.Split(bboxString, ",")
-	for _, coord := range coords {
-		if coordValue, err := strconv.ParseFloat(coord, 64); err == nil {
-			id.BoundingBox = append(id.BoundingBox, coordValue)
-		}
+	searchFeature := geojson.NewFeature(nil, "", properties)
+
+	if bboxString := request.FormValue("bbox"); bboxString != "" {
+		searchFeature.Bbox = geojson.NewBoundingBox(bboxString)
 	}
 
-	images, responseString := catalog.GetImages("test-images", &id)
-	if count, err := strconv.ParseInt(request.FormValue("count"), 0, 32); err == nil {
+	images, responseString := catalog.GetImages("test-images", searchFeature)
+	// We may wish to return only a subset of available images
+	if count < images.Count {
 		startIndex := 0
 		if resp, err := strconv.ParseInt(request.FormValue("startIndex"), 0, 32); err == nil {
 			startIndex = int(resp)
 		}
-		images.Count = len(images.Images)
 		images.StartIndex = startIndex
-		images.Images = images.Images[startIndex:int(math.Max(float64(startIndex+int(count)), float64(count)))]
+		endIndex := int(math.Min(float64(startIndex+int(count)), float64(images.Count)))
+		images.Images.Features = images.Images.Features[startIndex:endIndex]
+		images.Count = count
 		responseBytes, _ = json.Marshal(images)
 	} else {
 		responseBytes = []byte(responseString)
 	}
 
 	writer.Write(responseBytes)
-}
-
-func selectFunc(writer http.ResponseWriter, request *http.Request, client *redis.Client) {
-	query := request.FormValue("q")
-	result := client.Get(query)
-	fmt.Fprintf(writer, result.Val())
 }
 
 var serveCmd = &cobra.Command{

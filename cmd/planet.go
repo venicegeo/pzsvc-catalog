@@ -26,6 +26,8 @@ import (
 	"github.com/venicegeo/pzsvc-catalog/catalog"
 )
 
+type harvestCallback func(*geojson.FeatureCollection)
+
 func harvestPlanetOrtho() {
 	endpoint := "v0/scenes/ortho/?count=1000"
 	var err error
@@ -45,8 +47,6 @@ func harvestPlanetOrtho() {
 		log.Print(err.Error)
 	}
 }
-
-type harvestCallback func(*geojson.FeatureCollection)
 
 func harvestPlanetRapidEye() {
 	endpoint := "v0/scenes/rapideye/?count=1000"
@@ -89,44 +89,36 @@ func harvestPlanetEndpoint(endpoint string, callback harvestCallback) (string, e
 }
 
 func storePlanetOrtho(fc *geojson.FeatureCollection) {
+	client := catalog.RedisClient(nil)
+
 	for _, curr := range fc.Features {
+		properties := make(map[string]interface{})
+		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
+		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
+		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
+		properties["acquiredDate"] = curr.Properties["acquired"].(string)
+		feature := geojson.NewFeature(curr.Geometry, curr.ID, properties)
+		feature.Bbox = curr.ForceBbox()
+		bytes, _ := json.Marshal(feature)
 		key := "test-image-pl:" + curr.ID
-		descriptor := catalog.ImageDescriptor{
-			CloudCover:    curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64),
-			Path:          curr.Properties["links"].(map[string]interface{})["self"].(string),
-			ThumbnailPath: curr.Properties["links"].(map[string]interface{})["thumbnail"].(string),
-			AcquiredDate:  curr.Properties["acquired"].(string),
-			BoundingBox:   curr.ForceBbox(),
-			ID:            curr.ID}
-
-		bitDepth := curr.Properties["camera"].(map[string]interface{})["bit_depth"]
-		switch bitDepthType := bitDepth.(type) {
-		case float64:
-			descriptor.BitDepth = int(bitDepthType)
-		}
-
-		bytes, _ := json.Marshal(descriptor)
-
-		client := catalog.RedisClient(nil)
 		client.Set(key, string(bytes), 0)
 		client.SAdd("test-images", key)
 	}
 }
 
 func storePlanetRapidEye(fc *geojson.FeatureCollection) {
+	client := catalog.RedisClient(nil)
+
 	for _, curr := range fc.Features {
+		properties := make(map[string]interface{})
+		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
+		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
+		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
+		properties["acquiredDate"] = curr.Properties["acquired"].(string)
+		feature := geojson.NewFeature(curr.Geometry, curr.ID, properties)
+		feature.Bbox = curr.ForceBbox()
+		bytes, _ := json.Marshal(feature)
 		key := "test-image-pl:" + curr.ID
-		descriptor := catalog.ImageDescriptor{
-			CloudCover:    curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64),
-			Path:          curr.Properties["links"].(map[string]interface{})["self"].(string),
-			ThumbnailPath: curr.Properties["links"].(map[string]interface{})["thumbnail"].(string),
-			AcquiredDate:  curr.Properties["acquired"].(string),
-			BoundingBox:   curr.ForceBbox(),
-			ID:            curr.ID}
-
-		bytes, _ := json.Marshal(descriptor)
-
-		client := catalog.RedisClient(nil)
 		client.Set(key, string(bytes), 0)
 		client.SAdd("test-images", key)
 	}
@@ -140,7 +132,7 @@ Harvest image metadata from Planet Labs
 
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// harvestPlanetOrtho()
-		harvestPlanetRapidEye()
+		harvestPlanetOrtho()
+		// harvestPlanetRapidEye() Since RapidEye doesn't report cloud cover, why bother?
 	},
 }

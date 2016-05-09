@@ -16,6 +16,7 @@ package catalog
 
 import (
 	"encoding/json"
+	"math"
 	"time"
 
 	"github.com/venicegeo/geojson-go/geojson"
@@ -23,32 +24,18 @@ import (
 
 // ImageDescriptors is the response to a Discover query
 type ImageDescriptors struct {
-	Count      int               `json:"count"`
-	StartIndex int               `json:"startIndex"`
-	Images     []ImageDescriptor `json:"images"`
-}
-
-// ImageDescriptor is the descriptor of a specific catalog entry
-type ImageDescriptor struct {
-	ID              string              `json:"id"`
-	Path            string              `json:"path"` //URI
-	ThumbnailPath   string              `json:"thumbnailPath,omitempty"`
-	PreviewPath     string              `json:"previewPath,omitempty"`
-	FileFormat      string              `json:"fileFormat"`
-	BoundingBox     geojson.BoundingBox `json:"bbox"`
-	AcquiredDate    string              `json:"acquiredDate,omitempty"`
-	CloudCover      float64             `json:"cloudCover,omitempty"`
-	BitDepth        int                 `json:"bitDepth,omitempty"`
-	BeachfrontScore float64             `json:"beachfrontScore,omitempty"`
-	FileSize        int64               `json:"fileSize,omitempty"`
+	Count      int                        `json:"count"`
+	StartIndex int                        `json:"startIndex"`
+	Images     *geojson.FeatureCollection `json:"images"`
 }
 
 // GetImages returns images for the given set matching the criteria in the options
-func GetImages(set string, options *ImageDescriptor) (ImageDescriptors, string) {
+func GetImages(set string, options *geojson.Feature) (ImageDescriptors, string) {
 	var (
 		result     ImageDescriptors
 		bytes      []byte
 		resultText string
+		fc         *geojson.FeatureCollection
 	)
 	red := RedisClient(nil)
 
@@ -59,19 +46,24 @@ func GetImages(set string, options *ImageDescriptor) (ImageDescriptors, string) 
 		resultText = red.Get(key).Val()
 		json.Unmarshal([]byte(resultText), &result)
 	} else {
+		var features []*geojson.Feature
 		members := client.SMembers(set)
 		for _, curr := range members.Val() {
 			var (
-				cid      ImageDescriptor
+				cid      *geojson.Feature
 				idString string
+				err      error
 			)
 			idString = red.Get(curr).Val()
-			json.Unmarshal([]byte(idString), &cid)
-			if cid.pass(options) {
-				result.Images = append(result.Images, cid)
+			if cid, err = geojson.FeatureFromBytes([]byte(idString)); err == nil {
+				if passImageDescriptor(cid, options) {
+					features = append(features, cid)
+				}
 			}
 		}
-		result.Count = len(result.Images)
+		result.Count = len(features)
+		fc = geojson.NewFeatureCollection(features)
+		result.Images = fc
 		bytes, _ = json.Marshal(result)
 		resultText = string(bytes)
 		duration, _ := time.ParseDuration("24h")
@@ -82,39 +74,45 @@ func GetImages(set string, options *ImageDescriptor) (ImageDescriptors, string) 
 
 // pass returns true if the receiving object complies
 // with all of the properties in the input
-func (id *ImageDescriptor) pass(test *ImageDescriptor) bool {
+func passImageDescriptor(id, test *geojson.Feature) bool {
 	if test == nil {
 		return false
 	}
-	if test.CloudCover != 0 && id.CloudCover != 0 {
-		if id.CloudCover > test.CloudCover {
+	testCloudCover := test.PropertyFloat("cloudCover")
+	idCloudCover := id.PropertyFloat("cloudCover")
+	if testCloudCover != 0 && idCloudCover != 0 && !math.IsNaN(testCloudCover) && !math.IsNaN(idCloudCover) {
+		if idCloudCover > testCloudCover {
 			return false
 		}
 	}
-	if test.BitDepth != 0 && id.BitDepth != 0 {
-		if id.BitDepth < test.BitDepth {
+	// if test.BitDepth != 0 && id.BitDepth != 0 {
+	// 	if id.BitDepth < test.BitDepth {
+	// 		return false
+	// 	}
+	// }
+	testBeachfrontScore := test.PropertyFloat("beachfrontScore")
+	idBeachfrontScore := id.PropertyFloat("beachfrontScore")
+	if testBeachfrontScore != 0 && idBeachfrontScore != 0 && !math.IsNaN(testBeachfrontScore) && !math.IsNaN(idBeachfrontScore) {
+		if idBeachfrontScore < testBeachfrontScore {
 			return false
 		}
 	}
-	if test.BeachfrontScore != 0 && id.BeachfrontScore != 0 {
-		if id.BeachfrontScore < test.BeachfrontScore {
-			return false
-		}
-	}
-	if test.AcquiredDate != "" {
+	testAcquiredDate := test.PropertyString("acquiredDate")
+	idAcquiredDate := id.PropertyString("acquiredDate")
+	if testAcquiredDate != "" {
 		var (
 			idTime, testTime time.Time
 			err              error
 		)
-		if idTime, err = time.Parse(time.RFC3339, id.AcquiredDate); err == nil {
-			if testTime, err = time.Parse(time.RFC3339, test.AcquiredDate); err == nil {
+		if idTime, err = time.Parse(time.RFC3339, idAcquiredDate); err == nil {
+			if testTime, err = time.Parse(time.RFC3339, testAcquiredDate); err == nil {
 				if idTime.Before(testTime) {
 					return false
 				}
 			}
 		}
 	}
-	if (len(test.BoundingBox) > 0) && !test.BoundingBox.Overlaps(id.BoundingBox) {
+	if (len(test.Bbox) > 0) && !test.Bbox.Overlaps(id.Bbox) {
 		return false
 	}
 	return true
