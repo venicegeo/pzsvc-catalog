@@ -76,7 +76,7 @@ func GetImages(set string, options *geojson.Feature) (ImageDescriptors, string) 
 // with all of the properties in the input
 func passImageDescriptor(id, test *geojson.Feature) bool {
 	if test == nil {
-		return false
+		return true
 	}
 	testCloudCover := test.PropertyFloat("cloudCover")
 	idCloudCover := id.PropertyFloat("cloudCover")

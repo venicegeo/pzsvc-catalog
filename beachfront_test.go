@@ -18,7 +18,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/venicegeo/pzsvc-catalog/catalog"
+	"github.com/venicegeo/geojson-go/geojson"
+	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 	"gopkg.in/redis.v3"
 )
 
@@ -30,7 +31,10 @@ func TestBeachfront(t *testing.T) {
 		idm, idID string
 	)
 	setName := "test_images"
-	imageDescriptor := &catalog.ImageDescriptor{ID: "12345", Name: "Whatever"}
+	properties := make(map[string]interface{})
+	properties["name"] = "Whatever"
+
+	imageDescriptor := geojson.NewFeature(nil, "12345", properties)
 
 	if red = catalog.RedisClient(nil); red == nil {
 		t.Fatal("Failed to create Redis client")
@@ -45,13 +49,13 @@ func TestBeachfront(t *testing.T) {
 	red.Set(idID, idm, 0)
 	red.SAdd(setName, idID)
 
-	images := catalog.GetImages(setName, nil)
+	images, _ := catalog.GetImages(setName, nil)
 
 	t.Logf("%#v", images)
-	if len(images) < 1 {
+	if len(images.Images.Features) < 1 {
 		t.Error("Where are the images?")
 	}
-	for _, curr := range images {
+	for _, curr := range images.Images.Features {
 		t.Logf("%v", curr)
 	}
 	red.Del(setName)
