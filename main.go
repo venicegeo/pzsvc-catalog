@@ -14,7 +14,7 @@
 
 package main
 
-import "github.com/venicegeo/pzsvc-catalog/cmd"
+import "github.com/venicegeo/pzsvc-image-catalog/cmd"
 
 func main() {
 	cmd.Execute()

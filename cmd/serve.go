@@ -24,7 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
-	"github.com/venicegeo/pzsvc-catalog/catalog"
+	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 
 	"gopkg.in/redis.v3"
 )
