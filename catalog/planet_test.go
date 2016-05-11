@@ -14,20 +14,32 @@
 
 package catalog
 
-import "gopkg.in/redis.v3"
+import (
+	"net/http"
+	"testing"
 
-var client *redis.Client
+	"github.com/venicegeo/geojson-go/geojson"
+)
 
-// RedisClient is a factory method for a Redis instance
-func RedisClient(options *redis.Options) *redis.Client {
-	if client == nil {
-		if options == nil {
-			options = &redis.Options{Addr: "127.0.0.1:6379"}
-		}
-		client = redis.NewClient(options)
-		// redis.Options
+func TestPlanet(t *testing.T) {
+	var (
+		planetResponse PlanetResponse
+		err            error
+		response       *http.Response
+		fc             *geojson.FeatureCollection
+	)
+
+	if response, err = DoPlanetRequest("GET", "v0/scenes/ortho/"); err != nil {
+		t.Error(err)
 	}
-	return client
-}
+	if planetResponse, fc, err = UnmarshalPlanetResponse(response); err != nil {
+		t.Error(err)
+	}
 
-//VCAP_SERVICES p-redis
+	switch {
+	case len(fc.Features) > 0:
+		t.Logf("Length: %v\n", len(fc.Features))
+	default:
+		t.Errorf("%#v\n", planetResponse)
+	}
+}

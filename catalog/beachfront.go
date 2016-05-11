@@ -16,6 +16,7 @@ package catalog
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"time"
 
@@ -116,4 +117,14 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 		return false
 	}
 	return true
+}
+
+// HTTPError represents any HTTP error
+type HTTPError struct {
+	Status  int
+	Message string
+}
+
+func (err HTTPError) Error() string {
+	return fmt.Sprintf("%d: %v", err.Status, err.Message)
 }

@@ -19,6 +19,7 @@ import (
 	"log"
 
 	"github.com/spf13/cobra"
+	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
 var versionCmd = &cobra.Command{
@@ -38,6 +39,10 @@ func Execute() {
 		Long: `
   pzsvc-catalog is a command-line interface for the Beachfront catalog.`,
 	}
+
+	var planetKey string
+	planetCmd.Flags().StringVar(&planetKey, "PL_API_KEY", "", "Planet Labs API Key")
+	catalog.SetPlanetAPIKey(planetKey)
 
 	command.AddCommand(serveCmd)
 	command.AddCommand(planetCmd)

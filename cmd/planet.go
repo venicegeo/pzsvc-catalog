@@ -22,7 +22,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
-	"github.com/venicegeo/planet-sdk-go"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
@@ -73,14 +72,14 @@ func harvestPlanetEndpoint(endpoint string, callback harvestCallback) (string, e
 	var (
 		response       *http.Response
 		fc             *geojson.FeatureCollection
-		planetResponse planet.Response
+		planetResponse catalog.PlanetResponse
 		err            error
 	)
-	if response, err = planet.DoRequest("GET", endpoint); err != nil {
+	if response, err = catalog.DoPlanetRequest("GET", endpoint); err != nil {
 		return "", err
 	}
 
-	if planetResponse, fc, err = planet.UnmarshalResponse(response); err != nil {
+	if planetResponse, fc, err = catalog.UnmarshalPlanetResponse(response); err != nil {
 		return "", err
 	}
 	callback(fc)
