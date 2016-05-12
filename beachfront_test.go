@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"testing"
 
 	"github.com/venicegeo/geojson-go/geojson"
@@ -29,6 +30,7 @@ func TestBeachfront(t *testing.T) {
 		idmBytes  []byte
 		red       *redis.Client
 		idm, idID string
+		status    *redis.StatusCmd
 	)
 	setName := "test_images"
 	properties := make(map[string]interface{})
@@ -36,8 +38,8 @@ func TestBeachfront(t *testing.T) {
 
 	imageDescriptor := geojson.NewFeature(nil, "12345", properties)
 
-	if red = catalog.RedisClient(nil); red == nil {
-		t.Fatal("Failed to create Redis client")
+	if red, err = catalog.RedisClient(); red == nil {
+		t.Fatalf("Failed to create Redis client: %v", err.Error())
 	}
 	defer red.Close()
 
@@ -46,8 +48,16 @@ func TestBeachfront(t *testing.T) {
 	}
 	idm = string(idmBytes)
 	idID = "test" + imageDescriptor.ID
-	red.Set(idID, idm, 0)
-	red.SAdd(setName, idID)
+	log.Printf("Setting %v to %v", idID, idm)
+	status = red.Set(idID, idm, 0)
+	if _, err = status.Result(); err != nil {
+		t.Error(err.Error())
+	}
+	log.Printf("Setting %v to %v", idID, idm)
+	intCmd := red.SAdd(setName, idID)
+	if _, err = intCmd.Result(); err != nil {
+		t.Error(err.Error())
+	}
 
 	images, _ := catalog.GetImages(setName, nil)
 

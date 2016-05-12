@@ -105,7 +105,7 @@ func discoverFunc(writer http.ResponseWriter, request *http.Request, client *red
 		searchFeature.Bbox = geojson.NewBoundingBox(bboxString)
 	}
 
-	images, responseString := catalog.GetImages("test-images", searchFeature)
+	images, responseString := catalog.GetImages(imageCatalogPrefix, searchFeature)
 	// We may wish to return only a subset of available images
 	if count < images.Count {
 		startIndex := 0

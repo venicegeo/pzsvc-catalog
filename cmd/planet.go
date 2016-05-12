@@ -88,7 +88,7 @@ func harvestPlanetEndpoint(endpoint string, callback harvestCallback) (string, e
 }
 
 func storePlanetOrtho(fc *geojson.FeatureCollection) {
-	client := catalog.RedisClient()
+	client, _ := catalog.RedisClient()
 
 	for _, curr := range fc.Features {
 		properties := make(map[string]interface{})
@@ -99,14 +99,14 @@ func storePlanetOrtho(fc *geojson.FeatureCollection) {
 		feature := geojson.NewFeature(curr.Geometry, curr.ID, properties)
 		feature.Bbox = curr.ForceBbox()
 		bytes, _ := json.Marshal(feature)
-		key := "test-image-pl:" + curr.ID
+		key := imageCatalogPrefix + "-pl:" + curr.ID
 		client.Set(key, string(bytes), 0)
-		client.SAdd("test-images", key)
+		client.SAdd(imageCatalogPrefix, key)
 	}
 }
 
 func storePlanetRapidEye(fc *geojson.FeatureCollection) {
-	client := catalog.RedisClient()
+	client, _ := catalog.RedisClient()
 
 	for _, curr := range fc.Features {
 		properties := make(map[string]interface{})
@@ -117,9 +117,9 @@ func storePlanetRapidEye(fc *geojson.FeatureCollection) {
 		feature := geojson.NewFeature(curr.Geometry, curr.ID, properties)
 		feature.Bbox = curr.ForceBbox()
 		bytes, _ := json.Marshal(feature)
-		key := "test-image-pl:" + curr.ID
+		key := imageCatalogPrefix + "-pl:" + curr.ID
 		client.Set(key, string(bytes), 0)
-		client.SAdd("test-images", key)
+		client.SAdd(imageCatalogPrefix, key)
 	}
 }
 

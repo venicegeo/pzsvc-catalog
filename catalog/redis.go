@@ -16,7 +16,9 @@ package catalog
 
 import (
 	"encoding/json"
+	"log"
 	"os"
+	"strconv"
 
 	"gopkg.in/redis.v3"
 )
@@ -24,14 +26,17 @@ import (
 var client *redis.Client
 
 // RedisClient is a factory method for a Redis instance
-func RedisClient() *redis.Client {
+func RedisClient() (*redis.Client, error) {
 	if client == nil {
 		vcapServicesStr := os.Getenv("VCAP_SERVICES")
 		var vcapServices VcapServices
-		json.Unmarshal([]byte(vcapServicesStr), &vcapServices)
+		if err := json.Unmarshal([]byte(vcapServicesStr), &vcapServices); err != nil {
+			return nil, err
+		}
+		log.Printf("%#v", vcapServices)
 		client = redis.NewClient(vcapServices.RedisOptions())
 	}
-	return client
+	return client, nil
 }
 
 // VcapServices is the container for the VCAP_SERVICES environment variable
@@ -70,7 +75,9 @@ func (services VcapServices) RedisOptions() *redis.Options {
 		if redis.Credentials.Host == "" {
 			ok = false
 		} else {
-			result.Addr = redis.Credentials.Host + ":" + string(redis.Credentials.Port)
+			addr := redis.Credentials.Host + ":" + strconv.FormatInt(int64(redis.Credentials.Port), 10)
+			log.Printf("Actually read %v from environment", addr)
+			result.Addr = addr
 		}
 	}
 	if !ok {

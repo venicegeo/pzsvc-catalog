@@ -22,6 +22,8 @@ import (
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
+const imageCatalogPrefix = "pzsvc-image-catalog"
+
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number of the Harvest CLI",

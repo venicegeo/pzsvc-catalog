@@ -38,7 +38,7 @@ func GetImages(set string, options *geojson.Feature) (ImageDescriptors, string) 
 		resultText string
 		fc         *geojson.FeatureCollection
 	)
-	red := RedisClient()
+	red, _ := RedisClient()
 
 	bytes, _ = json.Marshal(options)
 	key := set + string(bytes)
