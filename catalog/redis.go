@@ -14,20 +14,67 @@
 
 package catalog
 
-import "gopkg.in/redis.v3"
+import (
+	"encoding/json"
+	"os"
+
+	"gopkg.in/redis.v3"
+)
 
 var client *redis.Client
 
 // RedisClient is a factory method for a Redis instance
-func RedisClient(options *redis.Options) *redis.Client {
+func RedisClient() *redis.Client {
 	if client == nil {
-		if options == nil {
-			options = &redis.Options{Addr: "127.0.0.1:6379"}
-		}
-		client = redis.NewClient(options)
-		// redis.Options
+		vcapServicesStr := os.Getenv("VCAP_SERVICES")
+		var vcapServices VcapServices
+		json.Unmarshal([]byte(vcapServicesStr), &vcapServices)
+		client = redis.NewClient(vcapServices.RedisOptions())
 	}
 	return client
 }
 
-//VCAP_SERVICES p-redis
+// VcapServices is the container for the VCAP_SERVICES environment variable
+type VcapServices struct {
+	Redis []VcapRedis `json:"p-redis"`
+}
+
+// VcapRedis is the p-redis element of VCAP_SERVICES
+type VcapRedis struct {
+	// Label       string          `json:"label"`
+	// Name        string          `json:"name"`
+	// Plan        string          `json:"plan"`
+	// Tags        []string        `json:"tags"`
+	Credentials VcapCredentials `json:"credentials"`
+}
+
+// VcapCredentials is the credentials element of VCAP_SERVICES
+type VcapCredentials struct {
+	Host     string `json:"host"`
+	Password string `json:"password"`
+	Port     int    `json:"port"`
+}
+
+// RedisOptions is a factory method for redis.Options
+// If the object is not complete, a default of 127.0.0.1:6379 is returned
+func (services VcapServices) RedisOptions() *redis.Options {
+	var (
+		result redis.Options
+	)
+	ok := true
+	if len(services.Redis) == 0 {
+		ok = false
+	} else {
+		redis := services.Redis[0]
+		result.Password = redis.Credentials.Password
+		if redis.Credentials.Host == "" {
+			ok = false
+		} else {
+			result.Addr = redis.Credentials.Host + ":" + string(redis.Credentials.Port)
+		}
+	}
+	if !ok {
+		result.Addr = "127.0.0.1:6379"
+	}
+	return &result
+}

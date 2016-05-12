@@ -88,7 +88,7 @@ func harvestPlanetEndpoint(endpoint string, callback harvestCallback) (string, e
 }
 
 func storePlanetOrtho(fc *geojson.FeatureCollection) {
-	client := catalog.RedisClient(nil)
+	client := catalog.RedisClient()
 
 	for _, curr := range fc.Features {
 		properties := make(map[string]interface{})
@@ -106,7 +106,7 @@ func storePlanetOrtho(fc *geojson.FeatureCollection) {
 }
 
 func storePlanetRapidEye(fc *geojson.FeatureCollection) {
-	client := catalog.RedisClient(nil)
+	client := catalog.RedisClient()
 
 	for _, curr := range fc.Features {
 		properties := make(map[string]interface{})
