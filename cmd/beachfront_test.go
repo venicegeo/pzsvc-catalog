@@ -12,54 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
 import (
-	"encoding/json"
-	"log"
 	"testing"
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
-	"gopkg.in/redis.v3"
 )
 
+const prefix = "test_images"
+
 func TestBeachfront(t *testing.T) {
-	var (
-		err       error
-		idmBytes  []byte
-		red       *redis.Client
-		idm, idID string
-		status    *redis.StatusCmd
-	)
-	setName := "test_images"
 	properties := make(map[string]interface{})
 	properties["name"] = "Whatever"
 
+	catalog.SetImageCatalogPrefix(prefix)
 	imageDescriptor := geojson.NewFeature(nil, "12345", properties)
+	catalog.StoreFeature(imageDescriptor)
 
-	if red, err = catalog.RedisClient(); red == nil {
-		t.Fatalf("Failed to create Redis client: %v", err.Error())
-	}
-	defer red.Close()
-
-	if idmBytes, err = json.Marshal(imageDescriptor); err != nil {
-		t.Error(err)
-	}
-	idm = string(idmBytes)
-	idID = "test" + imageDescriptor.ID
-	log.Printf("Setting %v to %v", idID, idm)
-	status = red.Set(idID, idm, 0)
-	if _, err = status.Result(); err != nil {
-		t.Error(err.Error())
-	}
-	log.Printf("Setting %v to %v", idID, idm)
-	intCmd := red.SAdd(setName, idID)
-	if _, err = intCmd.Result(); err != nil {
-		t.Error(err.Error())
-	}
-
-	images, _ := catalog.GetImages(setName, nil)
+	images, _ := catalog.GetImages(nil)
 
 	t.Logf("%#v", images)
 	if len(images.Images.Features) < 1 {
@@ -68,5 +40,6 @@ func TestBeachfront(t *testing.T) {
 	for _, curr := range images.Images.Features {
 		t.Logf("%v", curr)
 	}
-	red.Del(setName)
+	rc, _ := catalog.RedisClient()
+	rc.Del(prefix)
 }

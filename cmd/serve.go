@@ -31,17 +31,14 @@ import (
 
 func serve() {
 
-	var portStr string
-	// var args = os.Args[1:]
-	// if len(args) > 0 {
-	// 	portStr = ":" + args[0]
-	// } else {
-	portStr = ":8080"
-	// }
-
-	var options redis.Options
-	options.Addr = "127.0.0.1:6379"
-	client := redis.NewClient(&options)
+	portStr := ":8080"
+	var (
+		client *redis.Client
+		err    error
+	)
+	if client, err = catalog.RedisClient(); err != nil {
+		log.Fatalf("Failed to create Redis client: %v", err.Error())
+	}
 	defer client.Close()
 
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
@@ -105,7 +102,7 @@ func discoverFunc(writer http.ResponseWriter, request *http.Request, client *red
 		searchFeature.Bbox = geojson.NewBoundingBox(bboxString)
 	}
 
-	images, responseString := catalog.GetImages(imageCatalogPrefix, searchFeature)
+	images, responseString := catalog.GetImages(searchFeature)
 	// We may wish to return only a subset of available images
 	if count < images.Count {
 		startIndex := 0

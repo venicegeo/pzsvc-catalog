@@ -22,8 +22,6 @@ import (
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
-const imageCatalogPrefix = "pzsvc-image-catalog"
-
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number of the Harvest CLI",
@@ -36,13 +34,14 @@ var versionCmd = &cobra.Command{
 // Execute adds all child commands to the root command PlanetCmd and sets flags
 // appropriately.
 func Execute() {
-	var command = &cobra.Command{
+	var planetKey string
+	command := &cobra.Command{
 		Use: "pzsvc-catalog",
 		Long: `
   pzsvc-catalog is a command-line interface for the Beachfront catalog.`,
 	}
 
-	var planetKey string
+	catalog.SetImageCatalogPrefix("pzsvc-image-catalog")
 	planetCmd.Flags().StringVar(&planetKey, "PL_API_KEY", "", "Planet Labs API Key")
 	catalog.SetPlanetAPIKey(planetKey)
 

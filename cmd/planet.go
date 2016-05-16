@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
@@ -27,40 +26,20 @@ import (
 
 type harvestCallback func(*geojson.FeatureCollection)
 
-func harvestPlanetOrtho() {
-	endpoint := "v0/scenes/ortho/?count=1000"
+func harvestPlanet(endpoint string, callback harvestCallback) {
 	var err error
-	for err == nil {
+	for err == nil && (endpoint != "") {
 		var (
 			next        string
 			responseURL *url.URL
 		)
-		next, err = harvestPlanetEndpoint(endpoint, storePlanetOrtho)
+		next, err = harvestPlanetEndpoint(endpoint, callback)
 		if (len(next) == 0) || (err != nil) {
 			break
 		}
 		responseURL, err = url.Parse(next)
 		endpoint = responseURL.RequestURI()
-	}
-	if err != nil {
-		log.Print(err.Error)
-	}
-}
-
-func harvestPlanetRapidEye() {
-	endpoint := "v0/scenes/rapideye/?count=1000"
-	var err error
-	for err == nil {
-		var (
-			next        string
-			responseURL *url.URL
-		)
-		next, err = harvestPlanetEndpoint(endpoint, storePlanetRapidEye)
-		if (len(next) == 0) || (err != nil) {
-			break
-		}
-		responseURL, err = url.Parse(next)
-		endpoint = responseURL.RequestURI()
+		break // temporary
 	}
 	if err != nil {
 		log.Print(err.Error)
@@ -88,38 +67,47 @@ func harvestPlanetEndpoint(endpoint string, callback harvestCallback) (string, e
 }
 
 func storePlanetOrtho(fc *geojson.FeatureCollection) {
-	client, _ := catalog.RedisClient()
-
 	for _, curr := range fc.Features {
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
 		properties["acquiredDate"] = curr.Properties["acquired"].(string)
-		feature := geojson.NewFeature(curr.Geometry, curr.ID, properties)
+		properties["sensorName"] = "PlanetLabsOrthoAnalytic"
+		properties["bands"] = [4]string{"red", "green", "blue", "alpha"}
+		feature := geojson.NewFeature(curr.Geometry, "pl:ortho:"+curr.ID, properties)
 		feature.Bbox = curr.ForceBbox()
-		bytes, _ := json.Marshal(feature)
-		key := imageCatalogPrefix + "-pl:" + curr.ID
-		client.Set(key, string(bytes), 0)
-		client.SAdd(imageCatalogPrefix, key)
+		catalog.StoreFeature(feature)
 	}
 }
 
 func storePlanetRapidEye(fc *geojson.FeatureCollection) {
-	client, _ := catalog.RedisClient()
-
 	for _, curr := range fc.Features {
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
 		properties["acquiredDate"] = curr.Properties["acquired"].(string)
-		feature := geojson.NewFeature(curr.Geometry, curr.ID, properties)
+		properties["sensorName"] = "PlanetLabsRapidEye"
+		properties["bands"] = [4]string{"red", "green", "blue", "red edge"}
+		feature := geojson.NewFeature(curr.Geometry, "pl:rapideye:"+curr.ID, properties)
 		feature.Bbox = curr.ForceBbox()
-		bytes, _ := json.Marshal(feature)
-		key := imageCatalogPrefix + "-pl:" + curr.ID
-		client.Set(key, string(bytes), 0)
-		client.SAdd(imageCatalogPrefix, key)
+		catalog.StoreFeature(feature)
+	}
+}
+
+func storePlanetLandsat(fc *geojson.FeatureCollection) {
+	for _, curr := range fc.Features {
+		properties := make(map[string]interface{})
+		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
+		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
+		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
+		properties["acquiredDate"] = curr.Properties["acquired"].(string)
+		properties["sensorName"] = "Landsat8"
+		properties["bands"] = [11]string{"coastal", "red", "green", "blue", "nir", "swir1", "swir2", "panchromatic", "cirrus", "tirs1", "tirs2"}
+		feature := geojson.NewFeature(curr.Geometry, "pl:landsat:"+curr.ID, properties)
+		feature.Bbox = curr.ForceBbox()
+		catalog.StoreFeature(feature)
 	}
 }
 
@@ -131,7 +119,8 @@ Harvest image metadata from Planet Labs
 
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
-		harvestPlanetOrtho()
-		// harvestPlanetRapidEye() Since RapidEye doesn't report cloud cover, why bother?
+		// harvestPlanet("v0/scenes/ortho/?count=1000", storePlanetOrtho)
+		harvestPlanet("v0/scenes/landsat/?count=1000", storePlanetLandsat)
+		// harvestPlanet("v0/scenes/ortho/?count=1000", storePlanetRapidEye)Since RapidEye doesn't report cloud cover, why bother?
 	},
 }

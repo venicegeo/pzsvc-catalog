@@ -16,7 +16,6 @@ package catalog
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 	"strconv"
 
@@ -33,7 +32,6 @@ func RedisClient() (*redis.Client, error) {
 		if err := json.Unmarshal([]byte(vcapServicesStr), &vcapServices); err != nil {
 			return nil, err
 		}
-		log.Printf("%#v", vcapServices)
 		client = redis.NewClient(vcapServices.RedisOptions())
 	}
 	return client, nil
@@ -76,7 +74,6 @@ func (services VcapServices) RedisOptions() *redis.Options {
 			ok = false
 		} else {
 			addr := redis.Credentials.Host + ":" + strconv.FormatInt(int64(redis.Credentials.Port), 10)
-			log.Printf("Actually read %v from environment", addr)
 			result.Addr = addr
 		}
 	}

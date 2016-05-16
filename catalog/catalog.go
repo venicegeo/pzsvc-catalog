@@ -23,6 +23,14 @@ import (
 	"github.com/venicegeo/geojson-go/geojson"
 )
 
+var imageCatalogPrefix string
+
+// SetImageCatalogPrefix sets the prefix for this instance
+// when it is necessary to override the default
+func SetImageCatalogPrefix(prefix string) {
+	imageCatalogPrefix = prefix
+}
+
 // ImageDescriptors is the response to a Discover query
 type ImageDescriptors struct {
 	Count      int                        `json:"count"`
@@ -31,7 +39,7 @@ type ImageDescriptors struct {
 }
 
 // GetImages returns images for the given set matching the criteria in the options
-func GetImages(set string, options *geojson.Feature) (ImageDescriptors, string) {
+func GetImages(options *geojson.Feature) (ImageDescriptors, string) {
 	var (
 		result     ImageDescriptors
 		bytes      []byte
@@ -41,14 +49,14 @@ func GetImages(set string, options *geojson.Feature) (ImageDescriptors, string) 
 	red, _ := RedisClient()
 
 	bytes, _ = json.Marshal(options)
-	key := set + string(bytes)
+	key := imageCatalogPrefix + string(bytes)
 	queryExists := client.Exists(key)
 	if queryExists.Val() {
 		resultText = red.Get(key).Val()
 		json.Unmarshal([]byte(resultText), &result)
 	} else {
 		var features []*geojson.Feature
-		members := client.SMembers(set)
+		members := client.SMembers(imageCatalogPrefix)
 		for _, curr := range members.Val() {
 			var (
 				cid      *geojson.Feature
@@ -86,11 +94,13 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 			return false
 		}
 	}
-	// if test.BitDepth != 0 && id.BitDepth != 0 {
-	// 	if id.BitDepth < test.BitDepth {
-	// 		return false
-	// 	}
-	// }
+
+	testBitDepth := test.PropertyInt("bitDepth")
+	idBitDepth := id.PropertyInt("bitDepth")
+	if testBitDepth != 0 && idBitDepth != 0 && (idBitDepth < testBitDepth) {
+		return false
+	}
+
 	testBeachfrontScore := test.PropertyFloat("beachfrontScore")
 	idBeachfrontScore := id.PropertyFloat("beachfrontScore")
 	if testBeachfrontScore != 0 && idBeachfrontScore != 0 && !math.IsNaN(testBeachfrontScore) && !math.IsNaN(idBeachfrontScore) {
@@ -98,6 +108,7 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 			return false
 		}
 	}
+
 	testAcquiredDate := test.PropertyString("acquiredDate")
 	idAcquiredDate := id.PropertyString("acquiredDate")
 	if testAcquiredDate != "" {
@@ -113,6 +124,24 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 			}
 		}
 	}
+
+	testBands := test.PropertyStringSlice("bands")
+	idBands := id.PropertyStringSlice("bands")
+	var bandsIntersection []string
+	if len(testBands) > 0 {
+		for _, idBand := range idBands {
+			for _, testBand := range testBands {
+				if idBand == testBand {
+					bandsIntersection = append(bandsIntersection, idBand)
+					break
+				}
+			}
+		}
+		if len(bandsIntersection) < len(testBands) {
+			return false
+		}
+	}
+
 	if (len(test.Bbox) > 0) && !test.Bbox.Overlaps(id.Bbox) {
 		return false
 	}
@@ -127,4 +156,14 @@ type HTTPError struct {
 
 func (err HTTPError) Error() string {
 	return fmt.Sprintf("%d: %v", err.Status, err.Message)
+}
+
+// StoreFeature stores a feature into the catalog
+// using a key based on the feature's ID
+func StoreFeature(feature *geojson.Feature) {
+	rc, _ := RedisClient()
+	bytes, _ := json.Marshal(feature)
+	key := imageCatalogPrefix + ":" + feature.ID
+	rc.Set(key, string(bytes), 0)
+	rc.SAdd(imageCatalogPrefix, key)
 }
