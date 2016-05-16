@@ -52,6 +52,7 @@ func GetImages(options *geojson.Feature) (ImageDescriptors, string) {
 	key := imageCatalogPrefix + string(bytes)
 	queryExists := client.Exists(key)
 	if queryExists.Val() {
+		// if queryExists.Val() && false { // temporarily disable cache
 		resultText = red.Get(key).Val()
 		json.Unmarshal([]byte(resultText), &result)
 	} else {

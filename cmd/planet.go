@@ -26,27 +26,27 @@ import (
 
 type harvestCallback func(*geojson.FeatureCollection)
 
-func harvestPlanet(endpoint string, callback harvestCallback) {
+func harvestPlanetEndpoint(endpoint string, callback harvestCallback) {
 	var err error
 	for err == nil && (endpoint != "") {
 		var (
 			next        string
 			responseURL *url.URL
 		)
-		next, err = harvestPlanetEndpoint(endpoint, callback)
+		next, err = harvestPlanetOperation(endpoint, callback)
 		if (len(next) == 0) || (err != nil) {
 			break
 		}
 		responseURL, err = url.Parse(next)
 		endpoint = responseURL.RequestURI()
-		break // temporary
+		// break // comment this line to temporarily cap the dataset size
 	}
 	if err != nil {
 		log.Print(err.Error)
 	}
 }
 
-func harvestPlanetEndpoint(endpoint string, callback harvestCallback) (string, error) {
+func harvestPlanetOperation(endpoint string, callback harvestCallback) (string, error) {
 	log.Printf("Harvesting %v", endpoint)
 	var (
 		response       *http.Response
@@ -119,8 +119,8 @@ Harvest image metadata from Planet Labs
 
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// harvestPlanet("v0/scenes/ortho/?count=1000", storePlanetOrtho)
-		harvestPlanet("v0/scenes/landsat/?count=1000", storePlanetLandsat)
-		// harvestPlanet("v0/scenes/ortho/?count=1000", storePlanetRapidEye)Since RapidEye doesn't report cloud cover, why bother?
+		// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
+		harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", storePlanetLandsat)
+		// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetRapidEye)Since RapidEye doesn't report cloud cover, why bother?
 	},
 }

@@ -21,6 +21,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -94,6 +95,15 @@ func discoverFunc(writer http.ResponseWriter, request *http.Request, client *red
 
 	if beachfrontScore, err := strconv.ParseFloat(request.FormValue("beachfrontScore"), 64); err == nil {
 		properties["beachfrontScore"] = beachfrontScore
+	}
+
+	if sensorName := request.FormValue("sensorName"); sensorName != "" {
+		properties["sensorName"] = sensorName
+	}
+
+	if bandsString := request.FormValue("bands"); bandsString != "" {
+		bands := strings.Split(bandsString, ",")
+		properties["bands"] = bands
 	}
 
 	searchFeature := geojson.NewFeature(nil, "", properties)
