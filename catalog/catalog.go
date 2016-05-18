@@ -20,6 +20,8 @@ import (
 	"math"
 	"time"
 
+	"gopkg.in/redis.v3"
+
 	"github.com/venicegeo/geojson-go/geojson"
 )
 
@@ -51,13 +53,13 @@ func GetImages(options *geojson.Feature) (ImageDescriptors, string) {
 	bytes, _ = json.Marshal(options)
 	key := imageCatalogPrefix + string(bytes)
 	queryExists := client.Exists(key)
-	if queryExists.Val() {
-		// if queryExists.Val() && false { // temporarily disable cache
+	// if queryExists.Val() {
+	if queryExists.Val() && false { // temporarily disable cache
 		resultText = red.Get(key).Val()
 		json.Unmarshal([]byte(resultText), &result)
 	} else {
 		var features []*geojson.Feature
-		members := client.SMembers(imageCatalogPrefix)
+		members := client.ZRange(imageCatalogPrefix, 0, -1)
 		for _, curr := range members.Val() {
 			var (
 				cid      *geojson.Feature
@@ -127,19 +129,14 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 	}
 
 	testBands := test.PropertyStringSlice("bands")
-	idBands := id.PropertyStringSlice("bands")
-	var bandsIntersection []string
 	if len(testBands) > 0 {
-		for _, idBand := range idBands {
+		if idBandsIfc, ok := id.Properties["bands"]; ok {
+			idBands := idBandsIfc.(map[string]interface{})
 			for _, testBand := range testBands {
-				if idBand == testBand {
-					bandsIntersection = append(bandsIntersection, idBand)
-					break
+				if _, ok = idBands[testBand]; !ok {
+					return false
 				}
 			}
-		}
-		if len(bandsIntersection) < len(testBands) {
-			return false
 		}
 	}
 
@@ -147,6 +144,18 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 		return false
 	}
 	return true
+}
+
+// GetImageMetadata returns the image metadata as a GeoJSON feature
+func GetImageMetadata(id string) (*geojson.Feature, error) {
+	rc, _ := RedisClient()
+	var stringCmd *redis.StringCmd
+	key := imageCatalogPrefix + ":" + id
+	if stringCmd = rc.Get(key); stringCmd.Err() != nil {
+		return nil, stringCmd.Err()
+	}
+	metadataString := stringCmd.Val()
+	return geojson.FeatureFromBytes([]byte(metadataString))
 }
 
 // HTTPError represents any HTTP error
@@ -161,10 +170,11 @@ func (err HTTPError) Error() string {
 
 // StoreFeature stores a feature into the catalog
 // using a key based on the feature's ID
-func StoreFeature(feature *geojson.Feature) {
+func StoreFeature(feature *geojson.Feature, score float64) {
 	rc, _ := RedisClient()
 	bytes, _ := json.Marshal(feature)
 	key := imageCatalogPrefix + ":" + feature.ID
 	rc.Set(key, string(bytes), 0)
-	rc.SAdd(imageCatalogPrefix, key)
+	z := redis.Z{Score: score, Member: key}
+	rc.ZAdd(imageCatalogPrefix, z)
 }

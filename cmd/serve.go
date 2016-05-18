@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
@@ -41,25 +42,40 @@ func serve() {
 		log.Fatalf("Failed to create Redis client: %v", err.Error())
 	}
 	defer client.Close()
+	router := mux.NewRouter()
 
-	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		request.ParseForm()
-		switch request.URL.Path {
-		case "/":
-			fmt.Fprintf(writer, "Hi")
-		case "/discover":
-			discoverFunc(writer, request, client)
-		case "/help":
-			fmt.Fprintf(writer, "We're sorry, help is not yet implemented.\n")
-		default:
-			fmt.Fprintf(writer, "Command undefined. \n")
-		}
+	router.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		fmt.Fprintf(writer, "Hi")
 	})
+	router.HandleFunc("/discover", discoverHandler)
+	router.HandleFunc("/provision/{id}/{band}", provisionHandler)
+	// 	case "/help":
+	// 		fmt.Fprintf(writer, "We're sorry, help is not yet implemented.\n")
+	// 	default:
+	// 		fmt.Fprintf(writer, "Command undefined. \n")
+	// 	}
+	// })
 
+	http.Handle("/", router)
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
 
-func discoverFunc(writer http.ResponseWriter, request *http.Request, client *redis.Client) {
+func provisionHandler(writer http.ResponseWriter, request *http.Request) {
+	vars := mux.Vars(request)
+	id := vars["id"]
+	band := vars["band"]
+	if metadata, err := catalog.GetImageMetadata(id); err != nil {
+		message := fmt.Sprintf("Unable to retrieve metadata for %v: %v", id, err.Error())
+		http.Error(writer, message, http.StatusBadRequest)
+	} else {
+		bytes, _ := json.Marshal(metadata)
+		gj, _ := geojson.FeatureFromBytes(bytes)
+		bandValue := gj.Properties["bands"].(map[string]interface{})[band].(string)
+		writer.Write([]byte(bandValue))
+	}
+}
+
+func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 	var (
 		responseBytes []byte
 		count         int

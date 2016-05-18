@@ -18,6 +18,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -39,7 +40,7 @@ func harvestPlanetEndpoint(endpoint string, callback harvestCallback) {
 		}
 		responseURL, err = url.Parse(next)
 		endpoint = responseURL.RequestURI()
-		// break // comment this line to temporarily cap the dataset size
+		break // comment this line to stop temporarily capping the dataset size
 	}
 	if err != nil {
 		log.Print(err.Error)
@@ -67,47 +68,83 @@ func harvestPlanetOperation(endpoint string, callback harvestCallback) (string, 
 }
 
 func storePlanetOrtho(fc *geojson.FeatureCollection) {
+	var score float64
 	for _, curr := range fc.Features {
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
-		properties["acquiredDate"] = curr.Properties["acquired"].(string)
+		adString := curr.Properties["acquired"].(string)
+		properties["acquiredDate"] = adString
+		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
+			score = float64(-adTime.Unix())
+		} else {
+			score = 0
+		}
 		properties["sensorName"] = "PlanetLabsOrthoAnalytic"
 		properties["bands"] = [4]string{"red", "green", "blue", "alpha"}
 		feature := geojson.NewFeature(curr.Geometry, "pl:ortho:"+curr.ID, properties)
 		feature.Bbox = curr.ForceBbox()
-		catalog.StoreFeature(feature)
+		catalog.StoreFeature(feature, score)
 	}
 }
 
 func storePlanetRapidEye(fc *geojson.FeatureCollection) {
+	var score float64
 	for _, curr := range fc.Features {
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
 		properties["acquiredDate"] = curr.Properties["acquired"].(string)
+		adString := curr.Properties["acquired"].(string)
+		properties["acquiredDate"] = adString
+		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
+			score = float64(-adTime.Unix())
+		} else {
+			score = 0
+		}
 		properties["sensorName"] = "PlanetLabsRapidEye"
 		properties["bands"] = [4]string{"red", "green", "blue", "red edge"}
 		feature := geojson.NewFeature(curr.Geometry, "pl:rapideye:"+curr.ID, properties)
 		feature.Bbox = curr.ForceBbox()
-		catalog.StoreFeature(feature)
+		catalog.StoreFeature(feature, score)
 	}
 }
 
 func storePlanetLandsat(fc *geojson.FeatureCollection) {
+	var score float64
 	for _, curr := range fc.Features {
+		score = float64(0)
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
-		properties["acquiredDate"] = curr.Properties["acquired"].(string)
+		adString := curr.Properties["acquired"].(string)
+		properties["acquiredDate"] = adString
+		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
+			score = float64(-adTime.Unix())
+		} else {
+			score = 0
+		}
 		properties["sensorName"] = "Landsat8"
-		properties["bands"] = [11]string{"coastal", "red", "green", "blue", "nir", "swir1", "swir2", "panchromatic", "cirrus", "tirs1", "tirs2"}
+		bands := make(map[string]string)
+		products := curr.Properties["data"].(map[string]interface{})["products"].(map[string]interface{})
+		bands["coastal"] = products["band_1"].(map[string]interface{})["full"].(string)
+		bands["blue"] = products["band_2"].(map[string]interface{})["full"].(string)
+		bands["green"] = products["band_3"].(map[string]interface{})["full"].(string)
+		bands["red"] = products["band_4"].(map[string]interface{})["full"].(string)
+		bands["nir"] = products["band_5"].(map[string]interface{})["full"].(string)
+		bands["swir1"] = products["band_6"].(map[string]interface{})["full"].(string)
+		bands["swir2"] = products["band_7"].(map[string]interface{})["full"].(string)
+		bands["panchromatic"] = products["band_8"].(map[string]interface{})["full"].(string)
+		bands["cirrus"] = products["band_9"].(map[string]interface{})["full"].(string)
+		bands["tirs1"] = products["band_10"].(map[string]interface{})["full"].(string)
+		bands["tirs2"] = products["band_11"].(map[string]interface{})["full"].(string)
+		properties["bands"] = bands
 		feature := geojson.NewFeature(curr.Geometry, "pl:landsat:"+curr.ID, properties)
 		feature.Bbox = curr.ForceBbox()
-		catalog.StoreFeature(feature)
+		catalog.StoreFeature(feature, score)
 	}
 }
 

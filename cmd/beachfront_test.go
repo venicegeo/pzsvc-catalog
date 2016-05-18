@@ -29,7 +29,7 @@ func TestBeachfront(t *testing.T) {
 
 	catalog.SetImageCatalogPrefix(prefix)
 	imageDescriptor := geojson.NewFeature(nil, "12345", properties)
-	catalog.StoreFeature(imageDescriptor)
+	catalog.StoreFeature(imageDescriptor, 5)
 
 	images, _ := catalog.GetImages(nil)
 
