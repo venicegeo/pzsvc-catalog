@@ -17,7 +17,9 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
+	"net/http"
 	"time"
 
 	"gopkg.in/redis.v3"
@@ -177,4 +179,44 @@ func StoreFeature(feature *geojson.Feature, score float64) {
 	rc.Set(key, string(bytes), 0)
 	z := redis.Z{Score: score, Member: key}
 	rc.ZAdd(imageCatalogPrefix, z)
+}
+
+// ImageIOReader returns an io Reader for the requested band
+func ImageIOReader(id, band string) (io.Reader, error) {
+	var (
+		feature *geojson.Feature
+		err     error
+	)
+	if feature, err = GetImageMetadata(id); err != nil {
+		return nil, err
+	}
+	return ImageFeatureIOReader(feature, band)
+}
+
+// ImageFeatureIOReader returns an io Reader for the requested band
+func ImageFeatureIOReader(feature *geojson.Feature, band string) (io.Reader, error) {
+	// This will work for Landsat but others will require additional code
+	var (
+		result    io.Reader
+		err       error
+		bandsMap  map[string]interface{}
+		urlIfc    interface{}
+		urlString string
+		ok        bool
+		response  *http.Response
+	)
+	if bandsMap, ok = feature.Properties["bands"].(map[string]interface{}); ok {
+		if urlIfc, ok = bandsMap[band]; ok {
+			if urlString, ok = urlIfc.(string); ok {
+				if response, err = http.DefaultClient.Get(urlString); err != nil {
+					return nil, err
+				}
+				result = response.Body
+			}
+		}
+	}
+	if ok {
+		return result, nil
+	}
+	return nil, fmt.Errorf("Requested band \"%v\" not found in image %v.", band, feature.ID)
 }
