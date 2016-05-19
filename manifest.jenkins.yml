@@ -9,5 +9,5 @@ applications:
   timeout: 180
   env:
     PZ_AUTH: Basic Y2l0ZXN0ZXI6Y2l0ZXN0ZXI=
-  services: 
-    - pz-redis
+services: 
+  - pz-redis
