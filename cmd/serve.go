@@ -85,6 +85,9 @@ func provisionHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func planetHandler(writer http.ResponseWriter, request *http.Request) {
+	if drop, err := strconv.ParseBool(request.FormValue("dropIndex")); (err != nil) && drop {
+		writer.Write([]byte("Dropping existing index."))
+	}
 	go harvestPlanet(request.FormValue("PL_API_KEY"))
 	writer.Write([]byte("Harvesting started. Check back later."))
 }

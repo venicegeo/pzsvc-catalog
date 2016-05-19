@@ -181,6 +181,12 @@ func StoreFeature(feature *geojson.Feature, score float64) {
 	rc.ZAdd(imageCatalogPrefix, z)
 }
 
+// DropIndex drops the main index containing all known catalog entries
+func DropIndex() {
+	rc, _ := RedisClient()
+	rc.Del(imageCatalogPrefix)
+}
+
 // ImageIOReader returns an io Reader for the requested band
 func ImageIOReader(id, band string) (io.Reader, error) {
 	var (
