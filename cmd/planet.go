@@ -27,14 +27,14 @@ import (
 
 type harvestCallback func(*geojson.FeatureCollection)
 
-func harvestPlanetEndpoint(endpoint string, callback harvestCallback) {
+func harvestPlanetEndpoint(endpoint string, key string, callback harvestCallback) {
 	var err error
 	for err == nil && (endpoint != "") {
 		var (
 			next        string
 			responseURL *url.URL
 		)
-		next, err = harvestPlanetOperation(endpoint, callback)
+		next, err = harvestPlanetOperation(endpoint, key, callback)
 		if (len(next) == 0) || (err != nil) {
 			break
 		}
@@ -47,7 +47,7 @@ func harvestPlanetEndpoint(endpoint string, callback harvestCallback) {
 	}
 }
 
-func harvestPlanetOperation(endpoint string, callback harvestCallback) (string, error) {
+func harvestPlanetOperation(endpoint string, key string, callback harvestCallback) (string, error) {
 	log.Printf("Harvesting %v", endpoint)
 	var (
 		response       *http.Response
@@ -55,7 +55,7 @@ func harvestPlanetOperation(endpoint string, callback harvestCallback) (string, 
 		planetResponse catalog.PlanetResponse
 		err            error
 	)
-	if response, err = catalog.DoPlanetRequest("GET", endpoint); err != nil {
+	if response, err = catalog.DoPlanetRequest("GET", endpoint, key); err != nil {
 		return "", err
 	}
 
@@ -175,14 +175,13 @@ Harvest image metadata from Planet Labs
 
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
-		catalog.SetPlanetAPIKey(planetKey)
-		harvestPlanet()
+		harvestPlanet(planetKey)
 	},
 }
 
-func harvestPlanet() {
+func harvestPlanet(key string) {
 	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
-	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", storePlanetLandsat)
+	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", key, storePlanetLandsat)
 	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
 }
 

@@ -85,8 +85,7 @@ func provisionHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func planetHandler(writer http.ResponseWriter, request *http.Request) {
-	catalog.SetPlanetAPIKey(request.FormValue("PL_API_KEY"))
-	go harvestPlanet()
+	go harvestPlanet(request.FormValue("PL_API_KEY"))
 	writer.Write([]byte("Harvesting started. Check back later."))
 }
 

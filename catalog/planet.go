@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,18 +30,16 @@ import (
 const baseURLString = "https://api.planet.com/"
 
 var planetClient *http.Client
-var planetConfig PlanetConfig
 
 // DoPlanetRequest performs the request
-func DoPlanetRequest(method, relativeURL string) (*http.Response, error) {
+func DoPlanetRequest(method, relativeURL, key string) (*http.Response, error) {
 	baseURL, _ := url.Parse(baseURLString)
 	parsedRelativeURL, _ := url.Parse(relativeURL)
 	resolvedURL := baseURL.ResolveReference(parsedRelativeURL)
 	parsedURL, _ := url.Parse(resolvedURL.String())
 	request, _ := http.NewRequest(method, parsedURL.String(), nil)
 
-	config := GetPlanetConfig()
-	request.Header.Set("Authorization", "Basic "+config.Auth)
+	request.Header.Set("Authorization", "Basic "+getPlanetAuth(key))
 
 	if planetClient == nil {
 		transport := &http.Transport{
@@ -84,27 +81,13 @@ func UnmarshalPlanetResponse(response *http.Response) (PlanetResponse, *geojson.
 	return unmarshal, fc, err
 }
 
-// PlanetConfig represents the configuration for Planet Labs
-type PlanetConfig struct {
-	Auth, APIKey string
-}
-
-// GetPlanetConfig extracts config file contents.
-func GetPlanetConfig() PlanetConfig {
-	if planetConfig.Auth == "" {
-		if planetConfig.APIKey == "" {
-			planetConfig.APIKey = os.Getenv("PL_API_KEY")
-		}
-		planetConfig.Auth = base64.StdEncoding.EncodeToString([]byte(planetConfig.APIKey + ":"))
-		log.Printf("PL Auth: %v", planetConfig.Auth)
+func getPlanetAuth(key string) string {
+	var result string
+	if key == "" {
+		key = os.Getenv("PL_API_KEY")
 	}
-	return planetConfig
-}
-
-// SetPlanetAPIKey sets the Planet Labs API key
-// Otherwise it will be read from the environment.
-func SetPlanetAPIKey(key string) {
-	planetConfig.APIKey = key
+	result = base64.StdEncoding.EncodeToString([]byte(key + ":"))
+	return result
 }
 
 // PlanetResponse represents the response JSON structure.

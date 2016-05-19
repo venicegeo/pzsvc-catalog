@@ -29,7 +29,7 @@ func TestPlanet(t *testing.T) {
 		fc             *geojson.FeatureCollection
 	)
 
-	if response, err = DoPlanetRequest("GET", "v0/scenes/ortho/"); err != nil {
+	if response, err = DoPlanetRequest("GET", "v0/scenes/ortho/", ""); err != nil {
 		t.Error(err)
 	}
 	if planetResponse, fc, err = UnmarshalPlanetResponse(response); err != nil {
