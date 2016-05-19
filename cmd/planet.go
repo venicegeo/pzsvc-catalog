@@ -70,6 +70,9 @@ func harvestPlanetOperation(endpoint string, key string, callback harvestCallbac
 func storePlanetOrtho(fc *geojson.FeatureCollection) {
 	var score float64
 	for _, curr := range fc.Features {
+		if !whiteList(curr) {
+			continue
+		}
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
@@ -89,26 +92,42 @@ func storePlanetOrtho(fc *geojson.FeatureCollection) {
 	}
 }
 
-// It seems like a stupid question, but how do I make a resource file like
-// data/gz_2010_us_outline_20m.json available to the application
-// without downloading it?
-// var usBoundary *geos.Geom
-//
-// func getUSBoundary() *geos.Geom {
-//   if usBoundary == nil {
-//
-//   }
-//   return usBoundary
-// }
-//
-// function whiteList(feature *geojson.Feature) bool {
-//
-// }
-//
+var usBoundary *geojson.FeatureCollection
+
+func getUSBoundary() *geojson.FeatureCollection {
+	var (
+		gj  interface{}
+		err error
+	)
+	if usBoundary == nil {
+		if gj, err = geojson.ParseFile("data/Black_list_AOIs.geojson"); err != nil {
+			log.Printf("Parse error: %v\n", err.Error())
+			return nil
+		}
+		usBoundary = gj.(*geojson.FeatureCollection)
+	}
+	return usBoundary
+}
+
+func whiteList(feature *geojson.Feature) bool {
+	bbox := feature.ForceBbox()
+	fc := getUSBoundary()
+	if fc != nil {
+		for _, curr := range fc.Features {
+			if bbox.Overlaps(curr.ForceBbox()) {
+				return false
+			}
+		}
+	}
+	return true
+}
 
 func storePlanetRapidEye(fc *geojson.FeatureCollection) {
 	var score float64
 	for _, curr := range fc.Features {
+		if !whiteList(curr) {
+			continue
+		}
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(int)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
@@ -132,6 +151,9 @@ func storePlanetRapidEye(fc *geojson.FeatureCollection) {
 func storePlanetLandsat(fc *geojson.FeatureCollection) {
 	var score float64
 	for _, curr := range fc.Features {
+		if !whiteList(curr) {
+			continue
+		}
 		score = float64(0)
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
