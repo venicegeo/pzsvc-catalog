@@ -7,7 +7,7 @@ applications:
   disk_quota: 2G
   instances: 1
   timeout: 180
-  env:
-    PZ_AUTH: Basic Y2l0ZXN0ZXI6Y2l0ZXN0ZXI=
   services: 
     - pz-redis
+  env:
+    PZ_AUTH: Basic Y2l0ZXN0ZXI6Y2l0ZXN0ZXI=
