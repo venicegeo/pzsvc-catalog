@@ -42,12 +42,16 @@ func serve() {
 		log.Fatalf("Failed to create Redis client: %v", err.Error())
 	}
 	defer client.Close()
+	if info := client.Info(); info.Err() != nil {
+		log.Fatalf("Failed to connect to Redis: %v", info.Err().Error())
+	}
 	router := mux.NewRouter()
 
 	router.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprintf(writer, "Hi")
 	})
 	router.HandleFunc("/discover", discoverHandler)
+	router.HandleFunc("/planet", planetHandler)
 	router.HandleFunc("/provision/{id}/{band}", provisionHandler)
 	// 	case "/help":
 	// 		fmt.Fprintf(writer, "We're sorry, help is not yet implemented.\n")
@@ -73,6 +77,12 @@ func provisionHandler(writer http.ResponseWriter, request *http.Request) {
 		bandValue := gj.Properties["bands"].(map[string]interface{})[band].(string)
 		writer.Write([]byte(bandValue))
 	}
+}
+
+func planetHandler(writer http.ResponseWriter, request *http.Request) {
+	catalog.SetPlanetAPIKey(request.FormValue("PL_API_KEY"))
+	go harvestPlanet()
+	writer.Write([]byte("Harvesting started. Check back later."))
 }
 
 func discoverHandler(writer http.ResponseWriter, request *http.Request) {

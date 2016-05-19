@@ -176,10 +176,14 @@ Harvest image metadata from Planet Labs
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
 		catalog.SetPlanetAPIKey(planetKey)
-		// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
-		harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", storePlanetLandsat)
-		// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
+		harvestPlanet()
 	},
+}
+
+func harvestPlanet() {
+	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
+	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", storePlanetLandsat)
+	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
 }
 
 func init() {
