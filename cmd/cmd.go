@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
@@ -34,22 +33,18 @@ var versionCmd = &cobra.Command{
 // Execute adds all child commands to the root command PlanetCmd and sets flags
 // appropriately.
 func Execute() {
-	var planetKey string
-	command := &cobra.Command{
-		Use: "pzsvc-catalog",
-		Long: `
-  pzsvc-catalog is a command-line interface for the Beachfront catalog.`,
-	}
+	rootCommand.AddCommand(serveCmd)
+	rootCommand.AddCommand(planetCmd)
+	rootCommand.AddCommand(versionCmd)
+	rootCommand.Execute()
+}
 
+var rootCommand = &cobra.Command{
+	Use: "pzsvc-image-catalog",
+	Long: `
+pzsvc-image-catalog is a command-line interface for the Piazza image metadata catalog.`,
+}
+
+func init() {
 	catalog.SetImageCatalogPrefix("pzsvc-image-catalog")
-	planetCmd.Flags().StringVar(&planetKey, "PL_API_KEY", "", "Planet Labs API Key")
-	catalog.SetPlanetAPIKey(planetKey)
-
-	command.AddCommand(serveCmd)
-	command.AddCommand(planetCmd)
-	command.AddCommand(versionCmd)
-
-	if err := command.Execute(); err != nil {
-		log.Fatal(err)
-	}
 }

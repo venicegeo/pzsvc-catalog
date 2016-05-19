@@ -43,7 +43,7 @@ func harvestPlanetEndpoint(endpoint string, callback harvestCallback) {
 		break // comment this line to stop temporarily capping the dataset size
 	}
 	if err != nil {
-		log.Print(err.Error)
+		log.Print(err.Error())
 	}
 }
 
@@ -89,11 +89,28 @@ func storePlanetOrtho(fc *geojson.FeatureCollection) {
 	}
 }
 
+// It seems like a stupid question, but how do I make a resource file like
+// data/gz_2010_us_outline_20m.json available to the application
+// without downloading it?
+// var usBoundary *geos.Geom
+//
+// func getUSBoundary() *geos.Geom {
+//   if usBoundary == nil {
+//
+//   }
+//   return usBoundary
+// }
+//
+// function whiteList(feature *geojson.Feature) bool {
+//
+// }
+//
+
 func storePlanetRapidEye(fc *geojson.FeatureCollection) {
 	var score float64
 	for _, curr := range fc.Features {
 		properties := make(map[string]interface{})
-		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
+		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(int)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
 		properties["acquiredDate"] = curr.Properties["acquired"].(string)
@@ -148,6 +165,8 @@ func storePlanetLandsat(fc *geojson.FeatureCollection) {
 	}
 }
 
+var planetKey string
+
 var planetCmd = &cobra.Command{
 	Use:   "planet",
 	Short: "Harvest Planet Labs",
@@ -156,8 +175,13 @@ Harvest image metadata from Planet Labs
 
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
+		catalog.SetPlanetAPIKey(planetKey)
 		// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
 		harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", storePlanetLandsat)
-		// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetRapidEye)Since RapidEye doesn't report cloud cover, why bother?
+		// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
 	},
+}
+
+func init() {
+	planetCmd.Flags().StringVarP(&planetKey, "PL_API_KEY", "p", "bar", "Planet Labs API Key")
 }
