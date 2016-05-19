@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -95,6 +96,7 @@ func GetPlanetConfig() PlanetConfig {
 			planetConfig.APIKey = os.Getenv("PL_API_KEY")
 		}
 		planetConfig.Auth = base64.StdEncoding.EncodeToString([]byte(planetConfig.APIKey + ":"))
+		log.Printf("PL Auth: %v", planetConfig.Auth)
 	}
 	return planetConfig
 }
