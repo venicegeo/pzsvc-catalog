@@ -42,25 +42,30 @@ func serve() {
 		log.Fatalf("Failed to create Redis client: %v", err.Error())
 	}
 	defer client.Close()
-	if info := client.Info(); info.Err() != nil {
-		log.Fatalf("Failed to connect to Redis: %v", info.Err().Error())
+	if info := client.Info(); info.Err() == nil {
+		router := mux.NewRouter()
+
+		router.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+			fmt.Fprintf(writer, "Hi")
+		})
+		router.HandleFunc("/discover", discoverHandler)
+		router.HandleFunc("/planet", planetHandler)
+		router.HandleFunc("/provision/{id}/{band}", provisionHandler)
+		// 	case "/help":
+		// 		fmt.Fprintf(writer, "We're sorry, help is not yet implemented.\n")
+		// 	default:
+		// 		fmt.Fprintf(writer, "Command undefined. \n")
+		// 	}
+		// })
+		http.Handle("/", router)
+	} else {
+		message := fmt.Sprintf("Failed to connect to Redis: %v", info.Err().Error())
+		log.Print(message)
+		http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+			http.Error(writer, message, http.StatusInternalServerError)
+		})
 	}
-	router := mux.NewRouter()
 
-	router.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		fmt.Fprintf(writer, "Hi")
-	})
-	router.HandleFunc("/discover", discoverHandler)
-	router.HandleFunc("/planet", planetHandler)
-	router.HandleFunc("/provision/{id}/{band}", provisionHandler)
-	// 	case "/help":
-	// 		fmt.Fprintf(writer, "We're sorry, help is not yet implemented.\n")
-	// 	default:
-	// 		fmt.Fprintf(writer, "Command undefined. \n")
-	// 	}
-	// })
-
-	http.Handle("/", router)
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
 
