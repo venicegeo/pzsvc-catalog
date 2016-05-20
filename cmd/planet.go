@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
@@ -40,7 +41,7 @@ func harvestPlanetEndpoint(endpoint string, key string, callback harvestCallback
 		}
 		responseURL, err = url.Parse(next)
 		endpoint = responseURL.RequestURI()
-		break // comment this line to stop temporarily capping the dataset size
+		// break // comment this line to stop temporarily capping the dataset size
 	}
 	if err != nil {
 		log.Print(err.Error())
@@ -64,7 +65,14 @@ func harvestPlanetOperation(endpoint string, key string, callback harvestCallbac
 	}
 	callback(fc)
 
-	return planetResponse.Links.Next, nil
+	return planetResponse.Links.Next, harvestSanityCheck()
+}
+
+func harvestSanityCheck() error {
+	if catalog.IndexSize() > 100000 {
+		return errors.New("Okay, we're big enough.")
+	}
+	return nil
 }
 
 func storePlanetOrtho(fc *geojson.FeatureCollection) {
@@ -208,5 +216,5 @@ func harvestPlanet(key string) {
 }
 
 func init() {
-	planetCmd.Flags().StringVarP(&planetKey, "PL_API_KEY", "p", "bar", "Planet Labs API Key")
+	planetCmd.Flags().StringVarP(&planetKey, "PL_API_KEY", "p", "", "Planet Labs API Key")
 }

@@ -29,17 +29,24 @@ func TestBeachfront(t *testing.T) {
 
 	catalog.SetImageCatalogPrefix(prefix)
 	imageDescriptor := geojson.NewFeature(nil, "12345", properties)
-	catalog.StoreFeature(imageDescriptor, 5)
+	catalog.StoreFeature(imageDescriptor, -5)
+	rc, _ := catalog.RedisClient()
+	boolResult := rc.Exists(prefix + ":" + imageDescriptor.ID)
+	if !boolResult.Val() {
+		t.Error("Where is the feature?")
+	}
+	sliceResult := rc.ZRange(prefix, 0, -1)
+	if len(sliceResult.Val()) == 0 {
+		t.Errorf("Why is the ordered set empty? %v", sliceResult.Err())
+	}
 
-	images, _ := catalog.GetImages(nil)
+	images, _ := catalog.GetImages(nil, 0, -1)
 
-	t.Logf("%#v", images)
 	if len(images.Images.Features) < 1 {
 		t.Error("Where are the images?")
 	}
 	for _, curr := range images.Images.Features {
 		t.Logf("%v", curr)
 	}
-	rc, _ := catalog.RedisClient()
-	rc.Del(prefix)
+	// rc.Del(prefix)
 }

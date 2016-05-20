@@ -86,7 +86,7 @@ func provisionHandler(writer http.ResponseWriter, request *http.Request) {
 
 func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	if drop, err := strconv.ParseBool(request.FormValue("dropIndex")); (err == nil) && drop {
-		writer.Write([]byte("Dropping existing index."))
+		writer.Write([]byte("Dropping existing index.\n"))
 		catalog.DropIndex()
 	}
 	go harvestPlanet(request.FormValue("PL_API_KEY"))
@@ -94,15 +94,12 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func discoverHandler(writer http.ResponseWriter, request *http.Request) {
-	var (
-		responseBytes []byte
-		count         int
-	)
+	var count int64
 	properties := make(map[string]interface{})
 
 	// Give ourselves a resonable default and maximum
 	if parsedCount, err := strconv.ParseInt(request.FormValue("count"), 0, 32); err == nil {
-		count = int(math.Min(float64(parsedCount), 1000))
+		count = int64(math.Min(float64(parsedCount), 1000))
 	} else {
 		count = 20
 	}
@@ -146,23 +143,13 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 		searchFeature.Bbox = geojson.NewBoundingBox(bboxString)
 	}
 
-	images, responseString := catalog.GetImages(searchFeature)
-	// We may wish to return only a subset of available images
-	if count < images.Count {
-		startIndex := 0
-		if resp, err := strconv.ParseInt(request.FormValue("startIndex"), 0, 32); err == nil {
-			startIndex = int(resp)
-		}
-		images.StartIndex = startIndex
-		endIndex := int(math.Min(float64(startIndex+int(count)), float64(images.Count)))
-		images.Images.Features = images.Images.Features[startIndex:endIndex]
-		images.Count = count
-		responseBytes, _ = json.Marshal(images)
-	} else {
-		responseBytes = []byte(responseString)
+	startIndex := int64(0)
+	if resp, err := strconv.ParseInt(request.FormValue("startIndex"), 0, 64); err == nil {
+		startIndex = resp
 	}
+	_, responseString := catalog.GetImages(searchFeature, startIndex, count)
 
-	writer.Write(responseBytes)
+	writer.Write([]byte(responseString))
 }
 
 var serveCmd = &cobra.Command{

@@ -42,48 +42,105 @@ type ImageDescriptors struct {
 	Images     *geojson.FeatureCollection `json:"images"`
 }
 
+// IndexSize returns the size of the index
+func IndexSize() int64 {
+	rc, _ := RedisClient()
+	result := rc.ZCard(imageCatalogPrefix)
+	return result.Val()
+}
+
 // GetImages returns images for the given set matching the criteria in the options
-func GetImages(options *geojson.Feature) (ImageDescriptors, string) {
+func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescriptors, string) {
+
 	var (
 		result     ImageDescriptors
-		bytes      []byte
 		resultText string
+		results    *redis.StringSliceCmd
+		zrbs       redis.ZRangeByScore
+		ssc        *redis.StringSliceCmd
 		fc         *geojson.FeatureCollection
+		features   []*geojson.Feature
 	)
+	complete := false
+	go PopulateIndex(options)
+	index := GetDiscoverIndexName(options)
 	red, _ := RedisClient()
+	for !complete {
+		card := red.ZCard(index)
+		if card.Val() > end {
+			complete = true
+		} else {
+			zrbs.Min = "1"
+			zrbs.Max = "1"
+			ssc = red.ZRangeByScore(index, zrbs)
+			if len(ssc.Val()) > 0 {
+				complete = true
+			}
+		}
+		if complete {
+			results = red.ZRange(index, start, end)
+		} else {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 
-	bytes, _ = json.Marshal(options)
-	key := imageCatalogPrefix + string(bytes)
-	queryExists := client.Exists(key)
-	// if queryExists.Val() {
-	if queryExists.Val() && false { // temporarily disable cache
-		resultText = red.Get(key).Val()
-		json.Unmarshal([]byte(resultText), &result)
-	} else {
-		var features []*geojson.Feature
+	for _, curr := range results.Val() {
+		var (
+			cid      *geojson.Feature
+			idString string
+		)
+		idString = red.Get(curr).Val()
+		cid, _ = geojson.FeatureFromBytes([]byte(idString))
+		features = append(features, cid)
+	}
+	result.Count = len(features)
+	fc = geojson.NewFeatureCollection(features)
+	result.Images = fc
+	bytes, _ := json.Marshal(result)
+	resultText = string(bytes)
+	return result, resultText
+}
+
+// GetDiscoverIndexName returns the name of the index corresponding
+// to the search criteria provided
+func GetDiscoverIndexName(options *geojson.Feature) string {
+	bytes, _ := json.Marshal(options)
+	// TODO: hash this index name
+	return imageCatalogPrefix + string(bytes)
+}
+
+// PopulateIndex populates an index corresponding
+// to the search criteria provided
+func PopulateIndex(options *geojson.Feature) {
+	red, _ := RedisClient()
+	var (
+		cid      *geojson.Feature
+		idString string
+		err      error
+		z        redis.Z
+	)
+	index := GetDiscoverIndexName(options)
+
+	if indexExists := client.Exists(index); !indexExists.Val() {
 		members := client.ZRange(imageCatalogPrefix, 0, -1)
 		for _, curr := range members.Val() {
-			var (
-				cid      *geojson.Feature
-				idString string
-				err      error
-			)
 			idString = red.Get(curr).Val()
 			if cid, err = geojson.FeatureFromBytes([]byte(idString)); err == nil {
 				if passImageDescriptor(cid, options) {
-					features = append(features, cid)
+					z.Member = curr
+					z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
+					red.ZAdd(index, z)
 				}
 			}
 		}
-		result.Count = len(features)
-		fc = geojson.NewFeatureCollection(features)
-		result.Images = fc
-		bytes, _ = json.Marshal(result)
-		resultText = string(bytes)
+		// Stick a terminal entry in the index so we know it is done
+		// This is the only one with a positive score
+		z.Member = ""
+		z.Score = 1
+		red.ZAdd(index, z)
 		duration, _ := time.ParseDuration("24h")
-		client.Set(key, resultText, duration)
+		client.Expire(index, duration)
 	}
-	return result, resultText
 }
 
 // pass returns true if the receiving object complies
