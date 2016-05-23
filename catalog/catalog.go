@@ -21,6 +21,8 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/redis.v3"
@@ -125,12 +127,14 @@ func PopulateIndex(options *geojson.Feature) {
 	if indexExists := client.Exists(index); !indexExists.Val() {
 		members := client.ZRange(imageCatalogPrefix, 0, -1)
 		for _, curr := range members.Val() {
-			idString = red.Get(curr).Val()
-			if cid, err = geojson.FeatureFromBytes([]byte(idString)); err == nil {
-				if passImageDescriptor(cid, options) {
-					z.Member = curr
-					z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
-					red.ZAdd(index, z)
+			if passImageDescriptorKey(curr, options) {
+				idString = red.Get(curr).Val()
+				if cid, err = geojson.FeatureFromBytes([]byte(idString)); err == nil {
+					if passImageDescriptor(cid, options) {
+						z.Member = curr
+						z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
+						red.ZAdd(index, z)
+					}
 				}
 			}
 		}
@@ -144,20 +148,39 @@ func PopulateIndex(options *geojson.Feature) {
 	}
 }
 
+// This pass function gets called before retrieving and unmarshaling the value
+func passImageDescriptorKey(key string, test *geojson.Feature) bool {
+	if test == nil {
+		return true
+	}
+	keyParts := strings.Split(key, "&")
+	if len(keyParts) > 0 {
+		part := keyParts[1]
+		bbox := geojson.NewBoundingBox(part)
+		testCloudCover := test.PropertyFloat("cloudCover")
+		idCloudCover := bbox[4] // The 4th "value" is actually cloudCover
+		bbox = bbox[0:4]
+		if testCloudCover != 0 && idCloudCover != 0 && !math.IsNaN(testCloudCover) && !math.IsNaN(idCloudCover) {
+			if idCloudCover > testCloudCover {
+				return false
+			}
+		}
+
+		if (len(test.Bbox) > 0) && !test.Bbox.Overlaps(bbox) {
+			return false
+		}
+
+	}
+	return true
+}
+
 // pass returns true if the receiving object complies
 // with all of the properties in the input
+// This uses the unmarshaled value for the key
 func passImageDescriptor(id, test *geojson.Feature) bool {
 	if test == nil {
 		return true
 	}
-	testCloudCover := test.PropertyFloat("cloudCover")
-	idCloudCover := id.PropertyFloat("cloudCover")
-	if testCloudCover != 0 && idCloudCover != 0 && !math.IsNaN(testCloudCover) && !math.IsNaN(idCloudCover) {
-		if idCloudCover > testCloudCover {
-			return false
-		}
-	}
-
 	testBitDepth := test.PropertyInt("bitDepth")
 	idBitDepth := id.PropertyInt("bitDepth")
 	if testBitDepth != 0 && idBitDepth != 0 && (idBitDepth < testBitDepth) {
@@ -200,9 +223,6 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 		}
 	}
 
-	if (len(test.Bbox) > 0) && !test.Bbox.Overlaps(id.Bbox) {
-		return false
-	}
 	return true
 }
 
@@ -233,7 +253,10 @@ func (err HTTPError) Error() string {
 func StoreFeature(feature *geojson.Feature, score float64) {
 	rc, _ := RedisClient()
 	bytes, _ := json.Marshal(feature)
-	key := imageCatalogPrefix + ":" + feature.ID + ":" + feature.ForceBbox().String()
+	key := imageCatalogPrefix + ":" +
+		feature.ID + "&" +
+		feature.ForceBbox().String() + "," +
+		strconv.FormatFloat(feature.PropertyFloat("cloudCover"), 'f', 6, 64)
 	rc.Set(key, string(bytes), 0)
 	z := redis.Z{Score: score, Member: key}
 	rc.ZAdd(imageCatalogPrefix, z)
