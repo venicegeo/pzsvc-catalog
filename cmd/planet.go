@@ -41,7 +41,7 @@ func harvestPlanetEndpoint(endpoint string, key string, callback harvestCallback
 		}
 		responseURL, err = url.Parse(next)
 		endpoint = responseURL.RequestURI()
-		// break // comment this line to stop temporarily capping the dataset size
+		// break // uncomment this line temporarily cap the dataset size
 	}
 	if err != nil {
 		log.Print(err.Error())
