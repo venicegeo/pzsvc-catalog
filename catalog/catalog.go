@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"time"
@@ -232,15 +233,22 @@ func (err HTTPError) Error() string {
 func StoreFeature(feature *geojson.Feature, score float64) {
 	rc, _ := RedisClient()
 	bytes, _ := json.Marshal(feature)
-	key := imageCatalogPrefix + ":" + feature.ID
+	key := imageCatalogPrefix + ":" + feature.ID + ":" + feature.ForceBbox().String()
 	rc.Set(key, string(bytes), 0)
 	z := redis.Z{Score: score, Member: key}
 	rc.ZAdd(imageCatalogPrefix, z)
 }
 
 // DropIndex drops the main index containing all known catalog entries
+// and deletes the underlying entries
 func DropIndex() {
 	rc, _ := RedisClient()
+	if results := rc.ZRange(imageCatalogPrefix, 0, -1); results.Err() == nil {
+		log.Printf("Dropping %v keys.", len(results.Val()))
+		for _, curr := range results.Val() {
+			rc.Del(curr)
+		}
+	}
 	rc.Del(imageCatalogPrefix)
 }
 
