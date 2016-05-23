@@ -147,7 +147,7 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 	if resp, err := strconv.ParseInt(request.FormValue("startIndex"), 0, 64); err == nil {
 		startIndex = resp
 	}
-	_, responseString := catalog.GetImages(searchFeature, startIndex, count)
+	_, responseString := catalog.GetImages(searchFeature, startIndex, startIndex+count)
 
 	writer.Write([]byte(responseString))
 }
