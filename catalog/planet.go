@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/venicegeo/geojson-go/geojson"
 )
@@ -31,16 +32,7 @@ const baseURLString = "https://api.planet.com/"
 
 var planetClient *http.Client
 
-// DoPlanetRequest performs the request
-func DoPlanetRequest(method, relativeURL, key string) (*http.Response, error) {
-	baseURL, _ := url.Parse(baseURLString)
-	parsedRelativeURL, _ := url.Parse(relativeURL)
-	resolvedURL := baseURL.ResolveReference(parsedRelativeURL)
-	parsedURL, _ := url.Parse(resolvedURL.String())
-	request, _ := http.NewRequest(method, parsedURL.String(), nil)
-
-	request.Header.Set("Authorization", "Basic "+getPlanetAuth(key))
-
+func getPlanetClient() *http.Client {
 	if planetClient == nil {
 		transport := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -48,7 +40,33 @@ func DoPlanetRequest(method, relativeURL, key string) (*http.Response, error) {
 
 		planetClient = &http.Client{Transport: transport}
 	}
-	return planetClient.Do(request)
+	return planetClient
+}
+
+// DoPlanetRequest performs the request
+// URL may be relative or absolute based on baseURLString
+func DoPlanetRequest(method, inputURL, key string) (*http.Response, error) {
+	var (
+		request   *http.Request
+		parsedURL *url.URL
+		err       error
+	)
+	if !strings.Contains(inputURL, baseURLString) {
+		baseURL, _ := url.Parse(baseURLString)
+		parsedRelativeURL, _ := url.Parse(inputURL)
+		resolvedURL := baseURL.ResolveReference(parsedRelativeURL)
+
+		if parsedURL, err = url.Parse(resolvedURL.String()); err != nil {
+			return nil, err
+		}
+		inputURL = parsedURL.String()
+	}
+	if request, err = http.NewRequest(method, inputURL, nil); err != nil {
+		return nil, err
+	}
+
+	request.Header.Set("Authorization", "Basic "+getPlanetAuth(key))
+	return getPlanetClient().Do(request)
 }
 
 // UnmarshalPlanetResponse parses the response and returns a Planet Labs response object
