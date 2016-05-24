@@ -65,6 +65,7 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 		features   []*geojson.Feature
 	)
 	complete := false
+	log.Printf("Hello GetImages")
 	go PopulateIndex(options)
 	index := GetDiscoverIndexName(options)
 	red, _ := RedisClient()
@@ -122,10 +123,14 @@ func PopulateIndex(options *geojson.Feature) {
 		err      error
 		z        redis.Z
 	)
+	log.Printf("Hello PopulateIndex")
 	index := GetDiscoverIndexName(options)
 
 	if indexExists := client.Exists(index); !indexExists.Val() {
+
+		log.Printf("Trying to pull together members")
 		members := client.ZRange(imageCatalogPrefix, 0, -1)
+		log.Printf("Found %v members", len(members.Val()))
 		for _, curr := range members.Val() {
 			if passImageDescriptorKey(curr, options) {
 				idString = red.Get(curr).Val()
@@ -138,6 +143,7 @@ func PopulateIndex(options *geojson.Feature) {
 				}
 			}
 		}
+		log.Printf("Cycled through all members")
 		// Stick a terminal entry in the index so we know it is done
 		// This is the only one with a positive score
 		z.Member = ""
