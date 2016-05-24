@@ -94,62 +94,66 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func discoverHandler(writer http.ResponseWriter, request *http.Request) {
-	var count int64
-	properties := make(map[string]interface{})
-
-	// Give ourselves a resonable default and maximum
-	if parsedCount, err := strconv.ParseInt(request.FormValue("count"), 0, 32); err == nil {
-		count = int64(math.Min(float64(parsedCount), 1000))
+	if bboxString := request.FormValue("bbox"); bboxString == "" {
+		http.Error(writer, "A discovery request must contain a bounding box.", http.StatusBadRequest)
 	} else {
-		count = 20
-	}
+		var count int64
 
-	if fileFormat := request.FormValue("fileFormat"); fileFormat != "" {
-		properties["fileFormat"] = fileFormat
-	}
+		// Give ourselves a resonable default and maximum
+		if parsedCount, err := strconv.ParseInt(request.FormValue("count"), 0, 32); err == nil {
+			count = int64(math.Min(float64(parsedCount), 1000))
+		} else {
+			count = 20
+		}
 
-	if acquiredDate := request.FormValue("acquiredDate"); acquiredDate != "" {
-		properties["acquiredDate"] = acquiredDate
-	}
+		startIndex := int64(0)
+		if resp, err := strconv.ParseInt(request.FormValue("startIndex"), 0, 64); err == nil {
+			startIndex = resp
+		}
 
-	if bitDepth, err := strconv.ParseInt(request.FormValue("bitDepth"), 0, 32); err == nil {
-		properties["bitDepth"] = int(bitDepth)
-	}
+		// Put most of the parameters into a properties map
+		properties := make(map[string]interface{})
 
-	if fileSize, err := strconv.ParseInt(request.FormValue("fileSize"), 0, 64); err == nil {
-		properties["fileSize"] = fileSize
-	}
+		if fileFormat := request.FormValue("fileFormat"); fileFormat != "" {
+			properties["fileFormat"] = fileFormat
+		}
 
-	if cloudCover, err := strconv.ParseFloat(request.FormValue("cloudCover"), 64); err == nil {
-		properties["cloudCover"] = cloudCover
-	}
+		if acquiredDate := request.FormValue("acquiredDate"); acquiredDate != "" {
+			properties["acquiredDate"] = acquiredDate
+		}
 
-	if beachfrontScore, err := strconv.ParseFloat(request.FormValue("beachfrontScore"), 64); err == nil {
-		properties["beachfrontScore"] = beachfrontScore
-	}
+		if bitDepth, err := strconv.ParseInt(request.FormValue("bitDepth"), 0, 32); err == nil {
+			properties["bitDepth"] = int(bitDepth)
+		}
 
-	if sensorName := request.FormValue("sensorName"); sensorName != "" {
-		properties["sensorName"] = sensorName
-	}
+		if fileSize, err := strconv.ParseInt(request.FormValue("fileSize"), 0, 64); err == nil {
+			properties["fileSize"] = fileSize
+		}
 
-	if bandsString := request.FormValue("bands"); bandsString != "" {
-		bands := strings.Split(bandsString, ",")
-		properties["bands"] = bands
-	}
+		if cloudCover, err := strconv.ParseFloat(request.FormValue("cloudCover"), 64); err == nil {
+			properties["cloudCover"] = cloudCover
+		}
 
-	searchFeature := geojson.NewFeature(nil, "", properties)
+		if beachfrontScore, err := strconv.ParseFloat(request.FormValue("beachfrontScore"), 64); err == nil {
+			properties["beachfrontScore"] = beachfrontScore
+		}
 
-	if bboxString := request.FormValue("bbox"); bboxString != "" {
+		if sensorName := request.FormValue("sensorName"); sensorName != "" {
+			properties["sensorName"] = sensorName
+		}
+
+		if bandsString := request.FormValue("bands"); bandsString != "" {
+			bands := strings.Split(bandsString, ",")
+			properties["bands"] = bands
+		}
+
+		searchFeature := geojson.NewFeature(nil, "", properties)
+
 		searchFeature.Bbox = geojson.NewBoundingBox(bboxString)
-	}
 
-	startIndex := int64(0)
-	if resp, err := strconv.ParseInt(request.FormValue("startIndex"), 0, 64); err == nil {
-		startIndex = resp
+		_, responseString := catalog.GetImages(searchFeature, startIndex, startIndex+count-1)
+		writer.Write([]byte(responseString))
 	}
-	_, responseString := catalog.GetImages(searchFeature, startIndex, startIndex+count-1)
-
-	writer.Write([]byte(responseString))
 }
 
 var serveCmd = &cobra.Command{
