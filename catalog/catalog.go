@@ -109,6 +109,8 @@ func PopulateIndex(options *geojson.Feature) {
 		z        redis.Z
 	)
 
+	log.Printf("Populating index for %v", *options)
+
 	index := GetDiscoverIndexName(options)
 	members := client.ZRange(imageCatalogPrefix, 0, -1)
 	transaction, _ := red.Watch(index)
