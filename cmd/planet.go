@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"errors"
 	"log"
 	"net/http"
 	"net/url"
@@ -69,9 +68,9 @@ func harvestPlanetOperation(endpoint string, key string, callback harvestCallbac
 }
 
 func harvestSanityCheck() error {
-	if catalog.IndexSize() > 100000 {
-		return errors.New("Okay, we're big enough.")
-	}
+	// if catalog.IndexSize() > 100000 {
+	// 	return errors.New("Okay, we're big enough.")
+	// }
 	return nil
 }
 
@@ -177,21 +176,28 @@ func storePlanetLandsat(fc *geojson.FeatureCollection) {
 		properties["sensorName"] = "Landsat8"
 		bands := make(map[string]string)
 		products := curr.Properties["data"].(map[string]interface{})["products"].(map[string]interface{})
-		bands["coastal"] = products["band_1"].(map[string]interface{})["full"].(string)
-		bands["blue"] = products["band_2"].(map[string]interface{})["full"].(string)
-		bands["green"] = products["band_3"].(map[string]interface{})["full"].(string)
-		bands["red"] = products["band_4"].(map[string]interface{})["full"].(string)
-		bands["nir"] = products["band_5"].(map[string]interface{})["full"].(string)
-		bands["swir1"] = products["band_6"].(map[string]interface{})["full"].(string)
-		bands["swir2"] = products["band_7"].(map[string]interface{})["full"].(string)
-		bands["panchromatic"] = products["band_8"].(map[string]interface{})["full"].(string)
-		bands["cirrus"] = products["band_9"].(map[string]interface{})["full"].(string)
-		bands["tirs1"] = products["band_10"].(map[string]interface{})["full"].(string)
-		bands["tirs2"] = products["band_11"].(map[string]interface{})["full"].(string)
+		pluckBandToProducts(products, &bands, "coastal", "band_1")
+		pluckBandToProducts(products, &bands, "blue", "band_2")
+		pluckBandToProducts(products, &bands, "green", "band_3")
+		pluckBandToProducts(products, &bands, "red", "band_4")
+		pluckBandToProducts(products, &bands, "nir", "band_5")
+		pluckBandToProducts(products, &bands, "swir1", "band_6")
+		pluckBandToProducts(products, &bands, "swir2", "band_7")
+		pluckBandToProducts(products, &bands, "panchromatic", "band_8")
+		pluckBandToProducts(products, &bands, "cirrus", "band_9")
+		pluckBandToProducts(products, &bands, "tirs1", "band_10")
+		pluckBandToProducts(products, &bands, "tirs2", "band_11")
 		properties["bands"] = bands
 		feature := geojson.NewFeature(curr.Geometry, "pl:landsat:"+curr.ID, properties)
 		feature.Bbox = curr.ForceBbox()
 		catalog.StoreFeature(feature, score)
+	}
+}
+
+// Not all products have all bands
+func pluckBandToProducts(products map[string]interface{}, bands *map[string]string, bandName string, productName string) {
+	if product, ok := products[productName]; ok {
+		(*bands)[bandName] = product.(map[string]interface{})["full"].(string)
 	}
 }
 
