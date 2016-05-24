@@ -251,14 +251,16 @@ func StoreFeature(feature *geojson.Feature, score float64) {
 // DropIndex drops the main index containing all known catalog entries
 // and deletes the underlying entries
 func DropIndex() {
-	rc, _ := RedisClient()
-	if results := rc.ZRange(imageCatalogPrefix, 0, -1); results.Err() == nil {
+	red, _ := RedisClient()
+	transaction, _ := red.Watch(imageCatalogPrefix)
+	defer transaction.Close()
+	if results := transaction.ZRange(imageCatalogPrefix, 0, -1); results.Err() == nil {
 		log.Printf("Dropping %v keys.", len(results.Val()))
 		for _, curr := range results.Val() {
-			rc.Del(curr)
+			transaction.Del(curr)
 		}
 	}
-	rc.Del(imageCatalogPrefix)
+	transaction.Del(imageCatalogPrefix)
 }
 
 // ImageIOReader returns an io Reader for the requested band
