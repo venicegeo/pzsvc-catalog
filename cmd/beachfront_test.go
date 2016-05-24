@@ -40,7 +40,7 @@ func TestBeachfront(t *testing.T) {
 		t.Errorf("Why is the ordered set empty? %v", sliceResult.Err())
 	}
 
-	images, _ := catalog.GetImages(nil, 0, -1)
+	images, _, _ := catalog.GetImages(nil, 0, -1)
 
 	if len(images.Images.Features) < 1 {
 		t.Error("Where are the images?")

@@ -53,7 +53,7 @@ func IndexSize() int64 {
 }
 
 // GetImages returns images for the given set matching the criteria in the options
-func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescriptors, string) {
+func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescriptors, string, error) {
 
 	var (
 		result     ImageDescriptors
@@ -67,7 +67,9 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 	index := GetDiscoverIndexName(options)
 
 	if indexExists := client.Exists(index); !indexExists.Val() {
-		PopulateIndex(options)
+		if err := PopulateIndex(options); err != nil {
+			return result, "", err
+		}
 	}
 
 	results = red.ZRange(index, start, end)
@@ -87,7 +89,7 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 	result.Images = fc
 	bytes, _ := json.Marshal(result)
 	resultText = string(bytes)
-	return result, resultText
+	return result, resultText, nil
 }
 
 // GetDiscoverIndexName returns the name of the index corresponding
@@ -100,7 +102,7 @@ func GetDiscoverIndexName(options *geojson.Feature) string {
 
 // PopulateIndex populates an index corresponding
 // to the search criteria provided
-func PopulateIndex(options *geojson.Feature) {
+func PopulateIndex(options *geojson.Feature) error {
 	red, _ := RedisClient()
 	var (
 		cid      *geojson.Feature
@@ -113,13 +115,11 @@ func PopulateIndex(options *geojson.Feature) {
 
 	index := GetDiscoverIndexName(options)
 	members := client.ZRange(imageCatalogPrefix, 0, -1)
-	transaction, _ := red.Watch(index)
-	defer transaction.Close()
 	for _, curr := range members.Val() {
 		if passImageDescriptorKey(curr, options) {
 			// If there are no test properties, there is no point in inspecting the contents
 			if len(options.Properties) > 0 {
-				idString = transaction.Get(curr).Val()
+				idString = red.Get(curr).Val()
 				if cid, err = geojson.FeatureFromBytes([]byte(idString)); err == nil {
 					if !passImageDescriptor(cid, options) {
 						continue
@@ -127,13 +127,17 @@ func PopulateIndex(options *geojson.Feature) {
 				}
 			}
 			z.Member = curr
-			z.Score = transaction.ZScore(imageCatalogPrefix, curr).Val()
-			transaction.ZAdd(index, z)
+			z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
+			if result := red.ZAdd(index, z); result.Err() != nil {
+				return result.Err()
+			}
 		}
 	}
 
 	duration, _ := time.ParseDuration("24h")
-	transaction.Expire(index, duration)
+	result := red.Expire(index, duration)
+
+	return result.Err()
 }
 
 // This pass function gets called before retrieving and unmarshaling the value
