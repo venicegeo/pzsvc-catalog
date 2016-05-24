@@ -59,34 +59,35 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 		result     ImageDescriptors
 		resultText string
 		results    *redis.StringSliceCmd
-		zrbs       redis.ZRangeByScore
-		ssc        *redis.StringSliceCmd
-		fc         *geojson.FeatureCollection
-		features   []*geojson.Feature
+		// zrbs       redis.ZRangeByScore
+		// ssc        *redis.StringSliceCmd
+		fc       *geojson.FeatureCollection
+		features []*geojson.Feature
 	)
-	complete := false
-	go PopulateIndex(options)
+	// complete := false
+	PopulateIndex(options)
+	// go PopulateIndex(options)
 	index := GetDiscoverIndexName(options)
 	red, _ := RedisClient()
-	for !complete {
-		card := red.ZCard(index)
-		log.Printf("Found %v images for start %v and end %v", card.Val(), start, end)
-		if card.Val() > end {
-			complete = true
-		} else {
-			zrbs.Min = "0.5"
-			zrbs.Max = "1.5"
-			ssc = red.ZRangeByScore(index, zrbs)
-			if len(ssc.Val()) > 0 {
-				complete = true
-			}
-		}
-		if complete {
-			results = red.ZRange(index, start, end)
-		} else {
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
+	// for !complete {
+	// 	card := red.ZCard(index)
+	// 	log.Printf("Found %v images for start %v and end %v", card.Val(), start, end)
+	// 	if card.Val() > end {
+	// 		complete = true
+	// 	} else {
+	// 		zrbs.Min = "0.5"
+	// 		zrbs.Max = "1.5"
+	// 		ssc = red.ZRangeByScore(index, zrbs)
+	// 		if len(ssc.Val()) > 0 {
+	// 			complete = true
+	// 		}
+	// 	}
+	// 	if complete {
+	results = red.ZRange(index, start, end)
+	// 	} else {
+	// 		time.Sleep(100 * time.Millisecond)
+	// 	}
+	// }
 
 	for _, curr := range results.Val() {
 		var (
