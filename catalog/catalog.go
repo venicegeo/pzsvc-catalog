@@ -111,11 +111,13 @@ func PopulateIndex(options *geojson.Feature) {
 
 	index := GetDiscoverIndexName(options)
 	members := client.ZRange(imageCatalogPrefix, 0, -1)
+	transaction, _ := red.Watch(index)
+	defer transaction.Close()
 	for _, curr := range members.Val() {
 		if passImageDescriptorKey(curr, options) {
 			// If there are no test properties, there is no point in inspecting the contents
 			if len(options.Properties) > 0 {
-				idString = red.Get(curr).Val()
+				idString = transaction.Get(curr).Val()
 				if cid, err = geojson.FeatureFromBytes([]byte(idString)); err == nil {
 					if !passImageDescriptor(cid, options) {
 						continue
@@ -123,13 +125,13 @@ func PopulateIndex(options *geojson.Feature) {
 				}
 			}
 			z.Member = curr
-			z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
-			red.ZAdd(index, z)
+			z.Score = transaction.ZScore(imageCatalogPrefix, curr).Val()
+			transaction.ZAdd(index, z)
 		}
 	}
 
 	duration, _ := time.ParseDuration("24h")
-	client.Expire(index, duration)
+	transaction.Expire(index, duration)
 }
 
 // This pass function gets called before retrieving and unmarshaling the value
