@@ -16,6 +16,7 @@ package catalog
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"strconv"
 
@@ -35,6 +36,14 @@ func RedisClient() (*redis.Client, error) {
 		client = redis.NewClient(vcapServices.RedisOptions())
 	}
 	return client, nil
+}
+
+// RedisError closes down the connection so that other operations can
+// fail somewhat gracefully. We should never fail in normal settings.
+func RedisError(red *redis.Client, err error) {
+
+	log.Printf("Redis operation failed: %v", err.Error())
+	red.Close()
 }
 
 // VcapServices is the container for the VCAP_SERVICES environment variable

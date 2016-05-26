@@ -58,38 +58,78 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 	var (
 		result     ImageDescriptors
 		resultText string
-		results    *redis.StringSliceCmd
 		fc         *geojson.FeatureCollection
 		features   []*geojson.Feature
+		zrbs       redis.ZRangeByScore
+		ssc        *redis.StringSliceCmd
+		sc         *redis.StringCmd
 	)
 
 	red, _ := RedisClient()
 	index := GetDiscoverIndexName(options)
 
-	if indexExists := client.Exists(index); !indexExists.Val() {
-		if err := PopulateIndex(options); err != nil {
-			return result, "", err
+	// If the index does not exist, create it asynchronously
+	if indexExists := client.Exists(index); indexExists.Err() == nil {
+		if !indexExists.Val() {
+			go PopulateIndex(options, index)
+		}
+	} else {
+		RedisError(red, indexExists.Err())
+		return result, "", indexExists.Err()
+	}
+
+	// See if we can complete the requested query
+	complete := false
+	for !complete {
+		card := red.ZCard(index)
+		if card.Err() != nil {
+			RedisError(red, card.Err())
+			return result, "", card.Err()
+			// See we have enough results already
+		} else if card.Val() > end {
+			complete = true
+			// See if the terminal object has been added
+		} else {
+			zrbs.Min = "0.5"
+			zrbs.Max = "1.5"
+			ssc = red.ZRangeByScore(index, zrbs)
+			if ssc.Err() != nil {
+				RedisError(red, card.Err())
+				return result, "", card.Err()
+			} else if len(ssc.Val()) > 0 {
+				complete = true
+			}
+		}
+		if !complete {
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
-	results = red.ZRange(index, start, end)
-
-	for _, curr := range results.Val() {
+	if ssc = red.ZRange(index, start, end); ssc.Err() == nil {
 		var (
-			cid      *geojson.Feature
-			idString string
+			cid *geojson.Feature
 		)
-		idString = red.Get(curr).Val()
-		cid, _ = geojson.FeatureFromBytes([]byte(idString))
-		features = append(features, cid)
+		for _, curr := range ssc.Val() {
+			if sc = red.Get(curr); sc.Err() == nil {
+				cid, _ = geojson.FeatureFromBytes([]byte(sc.Val()))
+				features = append(features, cid)
+			} else {
+				RedisError(red, sc.Err())
+				return result, "", sc.Err()
+			}
+		}
+
+		result.Count = len(features)
+		result.StartIndex = int(start)
+		fc = geojson.NewFeatureCollection(features)
+		result.Images = fc
+		bytes, _ := json.Marshal(result)
+		resultText = string(bytes)
+		return result, resultText, nil
 	}
-	result.Count = len(features)
-	result.StartIndex = int(start)
-	fc = geojson.NewFeatureCollection(features)
-	result.Images = fc
-	bytes, _ := json.Marshal(result)
-	resultText = string(bytes)
-	return result, resultText, nil
+
+	RedisError(red, ssc.Err())
+	return result, "", ssc.Err()
 }
 
 // GetDiscoverIndexName returns the name of the index corresponding
@@ -102,7 +142,7 @@ func GetDiscoverIndexName(options *geojson.Feature) string {
 
 // PopulateIndex populates an index corresponding
 // to the search criteria provided
-func PopulateIndex(options *geojson.Feature) error {
+func PopulateIndex(options *geojson.Feature, index string) {
 	red, _ := RedisClient()
 	var (
 		cid      *geojson.Feature
@@ -111,9 +151,6 @@ func PopulateIndex(options *geojson.Feature) error {
 		z        redis.Z
 	)
 
-	log.Printf("Populating index for %v", *options)
-
-	index := GetDiscoverIndexName(options)
 	members := client.ZRange(imageCatalogPrefix, 0, -1)
 	for _, curr := range members.Val() {
 		if passImageDescriptorKey(curr, options) {
@@ -129,15 +166,23 @@ func PopulateIndex(options *geojson.Feature) error {
 			z.Member = curr
 			z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
 			if result := red.ZAdd(index, z); result.Err() != nil {
-				return result.Err()
+				RedisError(red, result.Err())
 			}
 		}
 	}
 
-	duration, _ := time.ParseDuration("24h")
-	result := red.Expire(index, duration)
+	// Stick a terminal entry in the index so we know it is done
+	// This is the only one with a positive score
+	z.Member = ""
+	z.Score = 1
+	if result := red.ZAdd(index, z); result.Err() != nil {
+		RedisError(red, result.Err())
+	}
 
-	return result.Err()
+	duration, _ := time.ParseDuration("24h")
+	if result := red.Expire(index, duration); result.Err() != nil {
+		RedisError(red, result.Err())
+	}
 }
 
 // This pass function gets called before retrieving and unmarshaling the value
