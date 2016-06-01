@@ -24,6 +24,7 @@ import (
 )
 
 var client *redis.Client
+var clientError error
 
 // RedisClient is a factory method for a Redis instance
 func RedisClient() (*redis.Client, error) {
@@ -42,7 +43,10 @@ func RedisClient() (*redis.Client, error) {
 // fail somewhat gracefully. We should never fail in normal settings.
 func RedisError(red *redis.Client, err error) {
 
-	log.Printf("Redis operation failed: %v", err.Error())
+	if clientError != nil {
+		clientError = err
+	}
+	log.Printf("Redis operation failed: %v", clientError.Error())
 	red.Close()
 }
 
