@@ -43,7 +43,7 @@ func RedisClient() (*redis.Client, error) {
 // fail somewhat gracefully. We should never fail in normal settings.
 func RedisError(red *redis.Client, err error) {
 
-	if clientError != nil {
+	if clientError == nil {
 		clientError = err
 	}
 	log.Printf("Redis operation failed: %v", clientError.Error())
