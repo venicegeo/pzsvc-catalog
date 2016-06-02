@@ -41,6 +41,7 @@ func SetImageCatalogPrefix(prefix string) {
 // ImageDescriptors is the response to a Discover query
 type ImageDescriptors struct {
 	Count      int                        `json:"count"`
+	TotalCount int                        `json:"totalCount"`
 	StartIndex int                        `json:"startIndex"`
 	Images     *geojson.FeatureCollection `json:"images"`
 }
@@ -82,6 +83,7 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 	complete := false
 	for !complete {
 		card := red.ZCard(index)
+		result.TotalCount = int(card.Val()) - 1 // ignore terminal element
 		if card.Err() != nil {
 			RedisError(red, card.Err())
 			return result, "", card.Err()
@@ -110,6 +112,10 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 			cid *geojson.Feature
 		)
 		for _, curr := range ssc.Val() {
+			if curr == "" {
+				// This is the terminal element - ignore it.
+				continue
+			}
 			if sc = red.Get(curr); sc.Err() == nil {
 				cid, _ = geojson.FeatureFromBytes([]byte(sc.Val()))
 				features = append(features, cid)
