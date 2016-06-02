@@ -46,7 +46,7 @@ func RedisError(red *redis.Client, err error) {
 	if clientError == nil {
 		clientError = err
 	}
-	log.Printf("Redis operation failed: %v", clientError.Error())
+	log.Panicf("Redis operation failed: %v", clientError.Error())
 	red.Close()
 }
 
