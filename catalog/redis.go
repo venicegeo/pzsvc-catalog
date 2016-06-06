@@ -23,20 +23,20 @@ import (
 	"gopkg.in/redis.v3"
 )
 
-var client *redis.Client
+var redisClient *redis.Client
 var clientError error
 
 // RedisClient is a factory method for a Redis instance
 func RedisClient() (*redis.Client, error) {
-	if client == nil {
+	if redisClient == nil {
 		vcapServicesStr := os.Getenv("VCAP_SERVICES")
 		var vcapServices VcapServices
 		if err := json.Unmarshal([]byte(vcapServicesStr), &vcapServices); err != nil {
 			return nil, err
 		}
-		client = redis.NewClient(vcapServices.RedisOptions())
+		redisClient = redis.NewClient(vcapServices.RedisOptions())
 	}
-	return client, nil
+	return redisClient, nil
 }
 
 // RedisError closes down the connection so that other operations can

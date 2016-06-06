@@ -15,7 +15,6 @@
 package catalog
 
 import (
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -28,20 +27,7 @@ import (
 	"github.com/venicegeo/geojson-go/geojson"
 )
 
-const baseURLString = "https://api.planet.com/"
-
-var planetClient *http.Client
-
-func getPlanetClient() *http.Client {
-	if planetClient == nil {
-		transport := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-
-		planetClient = &http.Client{Transport: transport}
-	}
-	return planetClient
-}
+const planetURLString = "https://api.planet.com/"
 
 // DoPlanetRequest performs the request
 // URL may be relative or absolute based on baseURLString
@@ -51,8 +37,8 @@ func DoPlanetRequest(method, inputURL, key string) (*http.Response, error) {
 		parsedURL *url.URL
 		err       error
 	)
-	if !strings.Contains(inputURL, baseURLString) {
-		baseURL, _ := url.Parse(baseURLString)
+	if !strings.Contains(inputURL, planetURLString) {
+		baseURL, _ := url.Parse(planetURLString)
 		parsedRelativeURL, _ := url.Parse(inputURL)
 		resolvedURL := baseURL.ResolveReference(parsedRelativeURL)
 
@@ -66,7 +52,7 @@ func DoPlanetRequest(method, inputURL, key string) (*http.Response, error) {
 	}
 
 	request.Header.Set("Authorization", "Basic "+getPlanetAuth(key))
-	return getPlanetClient().Do(request)
+	return getClient().Do(request)
 }
 
 // UnmarshalPlanetResponse parses the response and returns a Planet Labs response object

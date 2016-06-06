@@ -50,6 +50,7 @@ func serve() {
 		})
 		router.HandleFunc("/discover", discoverHandler)
 		router.HandleFunc("/planet", planetHandler)
+		router.HandleFunc("/dg", dgHandler)
 		router.HandleFunc("/provision/{id}/{band}", provisionHandler)
 		// 	case "/help":
 		// 		fmt.Fprintf(writer, "We're sorry, help is not yet implemented.\n")
@@ -90,6 +91,12 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 		catalog.DropIndex()
 	}
 	go harvestPlanet(request.FormValue("PL_API_KEY"))
+	writer.Write([]byte("Harvesting started. Check back later."))
+}
+
+func dgHandler(writer http.ResponseWriter, request *http.Request) {
+
+	go harvestDG(request.Header.Get("Authorization"))
 	writer.Write([]byte("Harvesting started. Check back later."))
 }
 

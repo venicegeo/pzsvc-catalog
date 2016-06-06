@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
@@ -64,20 +65,20 @@ func harvestPlanetOperation(endpoint string, key string, callback harvestCallbac
 	}
 	callback(fc)
 
-	return planetResponse.Links.Next, harvestSanityCheck()
+	return planetResponse.Links.Next, harvestPlanetSanityCheck()
 }
 
-func harvestSanityCheck() error {
-	// if catalog.IndexSize() > 100000 {
-	// 	return errors.New("Okay, we're big enough.")
-	// }
+func harvestPlanetSanityCheck() error {
+	if catalog.IndexSize() > 100000 {
+		return errors.New("Okay, we're big enough.")
+	}
 	return nil
 }
 
 func storePlanetOrtho(fc *geojson.FeatureCollection) {
 	var score float64
 	for _, curr := range fc.Features {
-		if !whiteList(curr) {
+		if !whiteList(curr.ForceBbox()) {
 			continue
 		}
 		properties := make(map[string]interface{})
@@ -116,8 +117,7 @@ func getUSBoundary() *geojson.FeatureCollection {
 	return usBoundary
 }
 
-func whiteList(feature *geojson.Feature) bool {
-	bbox := feature.ForceBbox()
+func whiteList(bbox geojson.BoundingBox) bool {
 	fc := getUSBoundary()
 	if fc != nil {
 		for _, curr := range fc.Features {
@@ -132,7 +132,7 @@ func whiteList(feature *geojson.Feature) bool {
 func storePlanetRapidEye(fc *geojson.FeatureCollection) {
 	var score float64
 	for _, curr := range fc.Features {
-		if !whiteList(curr) {
+		if !whiteList(curr.ForceBbox()) {
 			continue
 		}
 		properties := make(map[string]interface{})
@@ -158,7 +158,7 @@ func storePlanetRapidEye(fc *geojson.FeatureCollection) {
 func storePlanetLandsat(fc *geojson.FeatureCollection) {
 	var score float64
 	for _, curr := range fc.Features {
-		if !whiteList(curr) {
+		if !whiteList(curr.ForceBbox()) {
 			continue
 		}
 		score = float64(0)

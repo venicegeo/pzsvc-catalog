@@ -15,6 +15,7 @@
 package catalog
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,6 +30,19 @@ import (
 
 	"github.com/venicegeo/geojson-go/geojson"
 )
+
+var client *http.Client
+
+func getClient() *http.Client {
+	if client == nil {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+
+		client = &http.Client{Transport: transport}
+	}
+	return client
+}
 
 var imageCatalogPrefix string
 
@@ -70,8 +84,11 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 	index := GetDiscoverIndexName(options)
 
 	// If the index does not exist, create it asynchronously
-	if indexExists := client.Exists(index); indexExists.Err() == nil {
+	if indexExists := red.Exists(index); indexExists.Err() == nil {
 		if !indexExists.Val() {
+			if icmd := red.SAdd(imageCatalogPrefix+"-cache", index); icmd.Err() != nil {
+				RedisError(red, icmd.Err())
+			}
 			go PopulateIndex(options, index)
 		}
 	} else {
@@ -157,7 +174,7 @@ func PopulateIndex(options *geojson.Feature, index string) {
 		z        redis.Z
 	)
 
-	members := client.ZRange(imageCatalogPrefix, 0, -1)
+	members := red.ZRange(imageCatalogPrefix, 0, -1)
 	for _, curr := range members.Val() {
 		if passImageDescriptorKey(curr, options) {
 			// If there are no test properties, there is no point in inspecting the contents
