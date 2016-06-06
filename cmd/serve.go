@@ -153,11 +153,15 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 
 		if _, responseString, err := catalog.GetImages(searchFeature, startIndex, startIndex+count-1); err == nil {
 			writer.Write([]byte(responseString))
-			writer.Header().Set("Access-Control-Allow-Headers", "authorization, content-type")
-			writer.Header().Set("Access-Control-Allow-Methods", "GET")
-			origin := request.Header.Get("origin")
-			if strings.Contains(origin, "localhost") || strings.Contains(origin, "geointservices.io") {
+			if origin := request.Header.Get("Origin"); origin != "" {
 				writer.Header().Set("Access-Control-Allow-Origin", origin)
+				writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+				writer.Header().Set("Access-Control-Allow-Headers",
+					"Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+			}
+			// Stop here if its Preflighted OPTIONS request
+			if request.Method == "OPTIONS" {
+				return
 			}
 		} else {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
