@@ -160,11 +160,14 @@ func populateCache(options *geojson.Feature, cacheName string) {
 		z        redis.Z
 		intCmd   *redis.IntCmd
 		members  *redis.StringSliceCmd
+		count    int
 	)
 
+	// Make a set of caches in case we want to nuke them later
 	if intCmd = red.SAdd(imageCatalogPrefix+"-caches", cacheName); intCmd.Err() != nil {
 		RedisError(red, intCmd.Err())
 	}
+	// Create the cache using a full table scan
 	if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
 		RedisError(red, intCmd.Err())
 	}
@@ -181,13 +184,13 @@ func populateCache(options *geojson.Feature, cacheName string) {
 			}
 			z.Member = curr
 			z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
-			if result := red.ZAdd(cacheName, z); result.Err() == nil {
-				// Cap the result sets to a modest amount
-				if result.Val() >= maxCacheSize {
-					break
-				}
-			} else {
+			if result := red.ZAdd(cacheName, z); result.Err() != nil {
 				RedisError(red, result.Err())
+			}
+			count++
+			// Cap the result sets to a modest amount
+			if count >= maxCacheSize {
+				break
 			}
 		}
 	}
