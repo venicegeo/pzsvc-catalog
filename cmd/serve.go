@@ -94,6 +94,17 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func discoverHandler(writer http.ResponseWriter, request *http.Request) {
+	if origin := request.Header.Get("Origin"); origin != "" {
+		writer.Header().Set("Access-Control-Allow-Origin", origin)
+		writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		writer.Header().Set("Access-Control-Allow-Headers",
+			"Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	}
+	// Stop here if its Preflighted OPTIONS request
+	if request.Method == "OPTIONS" {
+		return
+	}
+
 	if bboxString := request.FormValue("bbox"); bboxString == "" {
 		http.Error(writer, "A discovery request must contain a bounding box.", http.StatusBadRequest)
 	} else {
@@ -153,16 +164,6 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 
 		if _, responseString, err := catalog.GetImages(searchFeature, startIndex, startIndex+count-1); err == nil {
 			writer.Write([]byte(responseString))
-			if origin := request.Header.Get("Origin"); origin != "" {
-				writer.Header().Set("Access-Control-Allow-Origin", origin)
-				writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-				writer.Header().Set("Access-Control-Allow-Headers",
-					"Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-			}
-			// Stop here if its Preflighted OPTIONS request
-			if request.Method == "OPTIONS" {
-				return
-			}
 		} else {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 		}
