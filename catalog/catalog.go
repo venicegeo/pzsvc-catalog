@@ -30,6 +30,9 @@ import (
 	"github.com/venicegeo/geojson-go/geojson"
 )
 
+const maxCacheSize = 1000
+const maxCacheTimeout = "1h"
+
 var imageCatalogPrefix string
 
 // SetImageCatalogPrefix sets the prefix for this instance
@@ -67,22 +70,22 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 	)
 
 	red, _ := RedisClient()
-	index := GetDiscoverIndexName(options)
+	cacheName := getDiscoverCacheName(options)
 
-	// If the index does not exist, create it asynchronously
-	if indexExists := client.Exists(index); indexExists.Err() == nil {
-		if !indexExists.Val() {
-			go PopulateIndex(options, index)
+	// If the cache does not exist, create it asynchronously
+	if cacheExists := client.Exists(cacheName); cacheExists.Err() == nil {
+		if !cacheExists.Val() {
+			go populateCache(options, cacheName)
 		}
 	} else {
-		RedisError(red, indexExists.Err())
-		return result, "", indexExists.Err()
+		RedisError(red, cacheExists.Err())
+		return result, "", cacheExists.Err()
 	}
 
 	// See if we can complete the requested query
 	complete := false
 	for !complete {
-		card := red.ZCard(index)
+		card := red.ZCard(cacheName)
 		result.TotalCount = int(card.Val()) - 1 // ignore terminal element
 		if card.Err() != nil {
 			RedisError(red, card.Err())
@@ -94,7 +97,7 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 		} else {
 			zrbs.Min = "0.5"
 			zrbs.Max = "1.5"
-			ssc = red.ZRangeByScore(index, zrbs)
+			ssc = red.ZRangeByScore(cacheName, zrbs)
 			if ssc.Err() != nil {
 				RedisError(red, card.Err())
 				return result, "", card.Err()
@@ -107,7 +110,7 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 		}
 	}
 
-	if ssc = red.ZRange(index, start, end); ssc.Err() == nil {
+	if ssc = red.ZRange(cacheName, start, end); ssc.Err() == nil {
 		var (
 			cid *geojson.Feature
 		)
@@ -138,26 +141,33 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 	return result, "", ssc.Err()
 }
 
-// GetDiscoverIndexName returns the name of the index corresponding
+// GetDiscoverCacheName returns the name of the index corresponding
 // to the search criteria provided
-func GetDiscoverIndexName(options *geojson.Feature) string {
+func getDiscoverCacheName(options *geojson.Feature) string {
 	bytes, _ := json.Marshal(options)
 	// TODO: we may wish to hash this index name
 	return imageCatalogPrefix + string(bytes)
 }
 
-// PopulateIndex populates an index corresponding
+// populateCache populates a cache corresponding
 // to the search criteria provided
-func PopulateIndex(options *geojson.Feature, index string) {
+func populateCache(options *geojson.Feature, cacheName string) {
 	red, _ := RedisClient()
 	var (
 		cid      *geojson.Feature
 		idString string
 		err      error
 		z        redis.Z
+		intCmd   *redis.IntCmd
+		members  *redis.StringSliceCmd
 	)
 
-	members := client.ZRange(imageCatalogPrefix, 0, -1)
+	if intCmd = red.SAdd(imageCatalogPrefix+"-caches", cacheName); intCmd.Err() != nil {
+		RedisError(red, intCmd.Err())
+	}
+	if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
+		RedisError(red, intCmd.Err())
+	}
 	for _, curr := range members.Val() {
 		if passImageDescriptorKey(curr, options) {
 			// If there are no test properties, there is no point in inspecting the contents
@@ -171,7 +181,12 @@ func PopulateIndex(options *geojson.Feature, index string) {
 			}
 			z.Member = curr
 			z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
-			if result := red.ZAdd(index, z); result.Err() != nil {
+			if result := red.ZAdd(cacheName, z); result.Err() == nil {
+				// Cap the result sets to a modest amount
+				if result.Val() >= maxCacheSize {
+					break
+				}
+			} else {
 				RedisError(red, result.Err())
 			}
 		}
@@ -181,12 +196,12 @@ func PopulateIndex(options *geojson.Feature, index string) {
 	// This is the only one with a positive score
 	z.Member = ""
 	z.Score = 1
-	if result := red.ZAdd(index, z); result.Err() != nil {
+	if result := red.ZAdd(cacheName, z); result.Err() != nil {
 		RedisError(red, result.Err())
 	}
 
-	duration, _ := time.ParseDuration("24h")
-	if result := red.Expire(index, duration); result.Err() != nil {
+	duration, _ := time.ParseDuration(maxCacheTimeout)
+	if result := red.Expire(cacheName, duration); result.Err() != nil {
 		RedisError(red, result.Err())
 	}
 }
