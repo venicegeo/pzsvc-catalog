@@ -69,6 +69,7 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 		sc         *redis.StringCmd
 	)
 
+	features = make([]*geojson.Feature, 0)
 	red, _ := RedisClient()
 	cacheName := getDiscoverCacheName(options)
 
