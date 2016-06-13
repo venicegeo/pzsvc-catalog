@@ -24,8 +24,8 @@ import (
 
 	"github.com/paulsmith/gogeos/geos"
 	"github.com/spf13/cobra"
+	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
-	"github.com/venicegeo/geojson-wkt-go/geojsonwkt"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
@@ -75,16 +75,16 @@ func harvestDG(auth string) {
 	)
 	// for lat := -80.0; lat < 80; lat += 0.5 {
 	// 	for long := -180.0; long < 180; long += 0.5 {
-	for lat := -10.0; lat < 10; lat += 0.5 {
-		for long := -10.0; long < 10; long += 0.5 {
+	for lat := 35.0; lat < 40.5; lat += 0.5 {
+		for long := 0.0; long < 10.0; long += 0.5 {
 			coords := [4]float64{long, lat, long + 0.5, lat + 0.5}
 			bbox := geojson.NewBoundingBox(coords)
 			if !whiteList(bbox) {
 				continue
 			}
 			wkt = fmt.Sprintf(wktPolygon, long, lat+0.5, long+.5, lat+0.5, long+0.5, lat, long, lat, long, lat+0.5)
-			log.Printf("Sending: %v", wkt)
 			requestURL = fmt.Sprintf(dgurl, wkt)
+			log.Printf("Requesting: %v", requestURL)
 			if response, err = catalog.DoDGRequest(requestURL, auth); err == nil {
 				var bodyText []byte
 				defer response.Body.Close()
@@ -97,6 +97,9 @@ func harvestDG(auth string) {
 			if err != nil {
 				break
 			}
+		}
+		if err != nil {
+			break
 		}
 	}
 	if err != nil {
