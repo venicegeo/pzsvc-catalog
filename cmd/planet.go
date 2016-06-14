@@ -84,6 +84,7 @@ func storePlanetOrtho(fc *geojson.FeatureCollection) {
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
+		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
 		adString := curr.Properties["acquired"].(string)
 		properties["acquiredDate"] = adString
 		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
@@ -140,6 +141,7 @@ func storePlanetRapidEye(fc *geojson.FeatureCollection) {
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
 		properties["acquiredDate"] = curr.Properties["acquired"].(string)
+		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
 		adString := curr.Properties["acquired"].(string)
 		properties["acquiredDate"] = adString
 		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
@@ -166,6 +168,7 @@ func storePlanetLandsat(fc *geojson.FeatureCollection) {
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
+		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
 		adString := curr.Properties["acquired"].(string)
 		properties["acquiredDate"] = adString
 		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
