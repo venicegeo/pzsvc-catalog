@@ -22,9 +22,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/paulsmith/gogeos/geos"
 	"github.com/spf13/cobra"
-	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
@@ -110,12 +108,10 @@ func harvestDG(auth string) {
 func harvestDGResponse(response DGResponse) {
 	for _, entry := range response.Entries {
 		var (
-			aTime        time.Time
-			err          error
-			geosGeometry *geos.Geometry
-			gjGeometry   interface{}
-			threshold    time.Time
-			bbox         geojson.BoundingBox
+			aTime      time.Time
+			gjGeometry interface{}
+			threshold  time.Time
+			bbox       geojson.BoundingBox
 		)
 
 		// If the entry is too old, move on
@@ -126,14 +122,7 @@ func harvestDGResponse(response DGResponse) {
 		}
 
 		// Get the geometry and do some sanity checking on it
-		if geosGeometry, err = geos.FromWKT(entry.WKT); err != nil {
-			log.Print(err.Error())
-			continue
-		}
-		if gjGeometry, err = geojsongeos.GeoJSONFromGeos(geosGeometry); err != nil {
-			log.Print(err.Error())
-			continue
-		}
+		gjGeometry = geojson.WKT(entry.WKT)
 		if forceable, ok := gjGeometry.(geojson.BoundingBoxIfc); ok {
 			bbox = forceable.ForceBbox()
 			if !whiteList(bbox) {
