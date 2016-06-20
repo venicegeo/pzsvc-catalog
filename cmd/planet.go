@@ -18,6 +18,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -167,7 +168,10 @@ func storePlanetLandsat(fc *geojson.FeatureCollection) {
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
-		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
+		id := curr.ID
+		url := landsatIDToS3Path(id)
+		properties["thumb_large"] = url + id + "_thumb_large.jpg"
+		properties["thumb_small"] = url + id + "_thumb_small.jpg"
 		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
 		adString := curr.Properties["acquired"].(string)
 		properties["acquiredDate"] = adString
@@ -178,23 +182,31 @@ func storePlanetLandsat(fc *geojson.FeatureCollection) {
 		}
 		properties["sensorName"] = "Landsat8"
 		bands := make(map[string]string)
-		products := curr.Properties["data"].(map[string]interface{})["products"].(map[string]interface{})
-		pluckBandToProducts(products, &bands, "coastal", "band_1")
-		pluckBandToProducts(products, &bands, "blue", "band_2")
-		pluckBandToProducts(products, &bands, "green", "band_3")
-		pluckBandToProducts(products, &bands, "red", "band_4")
-		pluckBandToProducts(products, &bands, "nir", "band_5")
-		pluckBandToProducts(products, &bands, "swir1", "band_6")
-		pluckBandToProducts(products, &bands, "swir2", "band_7")
-		pluckBandToProducts(products, &bands, "panchromatic", "band_8")
-		pluckBandToProducts(products, &bands, "cirrus", "band_9")
-		pluckBandToProducts(products, &bands, "tirs1", "band_10")
-		pluckBandToProducts(products, &bands, "tirs2", "band_11")
+		bands["coastal"] = url + id + "_B1.TIF"
+		bands["blue"] = url + id + "_B2.TIF"
+		bands["green"] = url + id + "_B3.TIF"
+		bands["red"] = url + id + "_B4.TIF"
+		bands["nir"] = url + id + "_B5.TIF"
+		bands["swir1"] = url + id + "_B6.TIF"
+		bands["swir2"] = url + id + "_B7.TIF"
+		bands["panchromatic"] = url + id + "_B8.TIF"
+		bands["cirrus"] = url + id + "_B9.TIF"
+		bands["tirs1"] = url + id + "_B10.TIF"
+		bands["tirs2"] = url + id + "_B11.TIF"
 		properties["bands"] = bands
-		feature := geojson.NewFeature(curr.Geometry, "pl:landsat:"+curr.ID, properties)
+		feature := geojson.NewFeature(curr.Geometry, "landsat:"+curr.ID, properties)
 		feature.Bbox = curr.ForceBbox()
 		catalog.StoreFeature(feature, score)
 	}
+}
+
+func landsatIDToS3Path(id string) string {
+	result := "http://landsat-pds.s3.amazonaws.com/"
+	if strings.HasPrefix(id, "LC8") {
+		result += "L8/"
+	}
+	result += id[3:6] + "/" + id[6:9] + "/" + id + "/"
+	return result
 }
 
 // Not all products have all bands
