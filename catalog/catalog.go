@@ -15,6 +15,7 @@
 package catalog
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -34,6 +35,19 @@ const maxCacheSize = 1000
 const maxCacheTimeout = "1h"
 
 var imageCatalogPrefix string
+
+var httpClient *http.Client
+
+func getHTTPClient() *http.Client {
+	if httpClient == nil {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+
+		httpClient = &http.Client{Transport: transport}
+	}
+	return httpClient
+}
 
 // SetImageCatalogPrefix sets the prefix for this instance
 // when it is necessary to override the default
@@ -353,7 +367,6 @@ func ImageIOReader(id, band, key string) (io.Reader, error) {
 
 // ImageFeatureIOReader returns an io Reader for the requested band
 func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io.Reader, error) {
-	// This will work for Landsat but others will require additional code
 	var (
 		result    io.Reader
 		err       error
@@ -366,8 +379,20 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 	if bandsMap, ok = feature.Properties["bands"].(map[string]interface{}); ok {
 		if urlIfc, ok = bandsMap[band]; ok {
 			if urlString, ok = urlIfc.(string); ok {
-				if response, err = DoPlanetRequest("GET", urlString, key); err != nil {
-					return nil, err
+				// This now works for PlanetLabs and Landsat.
+				// Others will require additional code.
+				if strings.HasPrefix(feature.ID, "pl:") {
+					if response, err = DoPlanetRequest("GET", urlString, key); err != nil {
+						return nil, err
+					}
+				} else {
+					var request *http.Request
+					if request, err = http.NewRequest("GET", urlString, nil); err != nil {
+						return nil, err
+					}
+					if response, err = getHTTPClient().Do(request); err != nil {
+						return nil, err
+					}
 				}
 				result = response.Body
 			}
