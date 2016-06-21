@@ -167,9 +167,9 @@ func storePlanetLandsat(fc *geojson.FeatureCollection) {
 		score = float64(0)
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
-		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
 		id := curr.ID
 		url := landsatIDToS3Path(id)
+		properties["path"] = url + "index.html"
 		properties["thumb_large"] = url + id + "_thumb_large.jpg"
 		properties["thumb_small"] = url + id + "_thumb_small.jpg"
 		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
