@@ -26,16 +26,16 @@ import (
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
-type harvestCallback func(*geojson.FeatureCollection)
+type harvestCallback func(*geojson.FeatureCollection, bool) error
 
-func harvestPlanetEndpoint(endpoint string, key string, callback harvestCallback) {
+func harvestPlanetEndpoint(endpoint string, key string, callback harvestCallback, reharvest bool) {
 	var err error
 	for err == nil && (endpoint != "") {
 		var (
 			next        string
 			responseURL *url.URL
 		)
-		next, err = harvestPlanetOperation(endpoint, key, callback)
+		next, err = harvestPlanetOperation(endpoint, key, callback, reharvest)
 		if (len(next) == 0) || (err != nil) {
 			break
 		}
@@ -48,7 +48,7 @@ func harvestPlanetEndpoint(endpoint string, key string, callback harvestCallback
 	}
 }
 
-func harvestPlanetOperation(endpoint string, key string, callback harvestCallback) (string, error) {
+func harvestPlanetOperation(endpoint string, key string, callback harvestCallback, reharvest bool) (string, error) {
 	log.Printf("Harvesting %v", endpoint)
 	var (
 		response       *http.Response
@@ -63,9 +63,11 @@ func harvestPlanetOperation(endpoint string, key string, callback harvestCallbac
 	if planetResponse, fc, err = catalog.UnmarshalPlanetResponse(response); err != nil {
 		return "", err
 	}
-	callback(fc)
+	if err = callback(fc, reharvest); err == nil {
+		err = harvestSanityCheck()
+	}
 
-	return planetResponse.Links.Next, harvestSanityCheck()
+	return planetResponse.Links.Next, err
 }
 
 func harvestSanityCheck() error {
@@ -75,31 +77,31 @@ func harvestSanityCheck() error {
 	return nil
 }
 
-func storePlanetOrtho(fc *geojson.FeatureCollection) {
-	var score float64
-	for _, curr := range fc.Features {
-		if !whiteList(curr) {
-			continue
-		}
-		properties := make(map[string]interface{})
-		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
-		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
-		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
-		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
-		adString := curr.Properties["acquired"].(string)
-		properties["acquiredDate"] = adString
-		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
-			score = float64(-adTime.Unix())
-		} else {
-			score = 0
-		}
-		properties["sensorName"] = "PlanetLabsOrthoAnalytic"
-		properties["bands"] = [4]string{"red", "green", "blue", "alpha"}
-		feature := geojson.NewFeature(curr.Geometry, "pl:ortho:"+curr.ID, properties)
-		feature.Bbox = curr.ForceBbox()
-		catalog.StoreFeature(feature, score)
-	}
-}
+// func storePlanetOrtho(fc *geojson.FeatureCollection, reharvest bool) {
+// 	var score float64
+// 	for _, curr := range fc.Features {
+// 		if !whiteList(curr) {
+// 			continue
+// 		}
+// 		properties := make(map[string]interface{})
+// 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
+// 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
+// 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
+// 		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
+// 		adString := curr.Properties["acquired"].(string)
+// 		properties["acquiredDate"] = adString
+// 		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
+// 			score = float64(-adTime.Unix())
+// 		} else {
+// 			score = 0
+// 		}
+// 		properties["sensorName"] = "PlanetLabsOrthoAnalytic"
+// 		properties["bands"] = [4]string{"red", "green", "blue", "alpha"}
+// 		feature := geojson.NewFeature(curr.Geometry, "pl:ortho:"+curr.ID, properties)
+// 		feature.Bbox = curr.ForceBbox()
+// 		catalog.StoreFeature(feature, score, reharvest)
+// 	}
+// }
 
 var usBoundary *geojson.FeatureCollection
 
@@ -131,35 +133,42 @@ func whiteList(feature *geojson.Feature) bool {
 	return true
 }
 
-func storePlanetRapidEye(fc *geojson.FeatureCollection) {
-	var score float64
-	for _, curr := range fc.Features {
-		if !whiteList(curr) {
-			continue
-		}
-		properties := make(map[string]interface{})
-		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(int)
-		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
-		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
-		properties["acquiredDate"] = curr.Properties["acquired"].(string)
-		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
-		adString := curr.Properties["acquired"].(string)
-		properties["acquiredDate"] = adString
-		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
-			score = float64(-adTime.Unix())
-		} else {
-			score = 0
-		}
-		properties["sensorName"] = "PlanetLabsRapidEye"
-		properties["bands"] = [4]string{"red", "green", "blue", "red edge"}
-		feature := geojson.NewFeature(curr.Geometry, "pl:rapideye:"+curr.ID, properties)
-		feature.Bbox = curr.ForceBbox()
-		catalog.StoreFeature(feature, score)
-	}
-}
+// func storePlanetRapidEye(fc *geojson.FeatureCollection, reharvest bool) error {
+// 	var (
+// 		score float64
+// 		err   error
+// 	)
+// 	for _, curr := range fc.Features {
+// 		if !whiteList(curr) {
+// 			continue
+// 		}
+// 		properties := make(map[string]interface{})
+// 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(int)
+// 		properties["path"] = curr.Properties["links"].(map[string]interface{})["self"].(string)
+// 		properties["thumbnail"] = curr.Properties["links"].(map[string]interface{})["thumbnail"].(string)
+// 		properties["acquiredDate"] = curr.Properties["acquired"].(string)
+// 		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
+// 		adString := curr.Properties["acquired"].(string)
+// 		properties["acquiredDate"] = adString
+// 		if adTime, err2 := time.Parse(time.RFC3339, adString); err2 == nil {
+// 			score = float64(-adTime.Unix())
+// 		} else {
+// 			score = 0
+// 		}
+// 		properties["sensorName"] = "PlanetLabsRapidEye"
+// 		properties["bands"] = [4]string{"red", "green", "blue", "red edge"}
+// 		feature := geojson.NewFeature(curr.Geometry, "pl:rapideye:"+curr.ID, properties)
+// 		feature.Bbox = curr.ForceBbox()
+// 		catalog.StoreFeature(feature, score, reharvest)
+// 	}
+// 	return err
+// }
 
-func storePlanetLandsat(fc *geojson.FeatureCollection) {
-	var score float64
+func storePlanetLandsat(fc *geojson.FeatureCollection, reharvest bool) error {
+	var (
+		score float64
+		err   error
+	)
 	for _, curr := range fc.Features {
 		if !whiteList(curr) {
 			continue
@@ -168,14 +177,14 @@ func storePlanetLandsat(fc *geojson.FeatureCollection) {
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		id := curr.ID
-		url := landsatIDToS3Path(id)
+		url := landsatIDToS3Path(curr.ID)
 		properties["path"] = url + "index.html"
 		properties["thumb_large"] = url + id + "_thumb_large.jpg"
 		properties["thumb_small"] = url + id + "_thumb_small.jpg"
 		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
 		adString := curr.Properties["acquired"].(string)
 		properties["acquiredDate"] = adString
-		if adTime, err := time.Parse(time.RFC3339, adString); err == nil {
+		if adTime, err2 := time.Parse(time.RFC3339, adString); err2 == nil {
 			score = float64(-adTime.Unix())
 		} else {
 			score = 0
@@ -194,10 +203,13 @@ func storePlanetLandsat(fc *geojson.FeatureCollection) {
 		bands["tirs1"] = url + id + "_B10.TIF"
 		bands["tirs2"] = url + id + "_B11.TIF"
 		properties["bands"] = bands
-		feature := geojson.NewFeature(curr.Geometry, "landsat:"+curr.ID, properties)
+		feature := geojson.NewFeature(curr.Geometry, "landsat:"+id, properties)
 		feature.Bbox = curr.ForceBbox()
-		catalog.StoreFeature(feature, score)
+		if err = catalog.StoreFeature(feature, score, reharvest); err != nil {
+			break
+		}
 	}
+	return err
 }
 
 func landsatIDToS3Path(id string) string {
@@ -226,13 +238,13 @@ Harvest image metadata from Planet Labs
 
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
-		harvestPlanet(planetKey)
+		harvestPlanet(planetKey, false)
 	},
 }
 
-func harvestPlanet(key string) {
+func harvestPlanet(key string, reharvest bool) {
 	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
-	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", key, storePlanetLandsat)
+	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", key, storePlanetLandsat, reharvest)
 	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
 }
 

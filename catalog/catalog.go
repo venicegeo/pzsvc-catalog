@@ -326,16 +326,26 @@ func (err HTTPError) Error() string {
 
 // StoreFeature stores a feature into the catalog
 // using a key based on the feature's ID
-func StoreFeature(feature *geojson.Feature, score float64) {
+func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) error {
 	rc, _ := RedisClient()
 	bytes, _ := json.Marshal(feature)
 	key := imageCatalogPrefix + ":" +
 		feature.ID + "&" +
 		feature.ForceBbox().String() + "," +
 		strconv.FormatFloat(feature.PropertyFloat("cloudCover"), 'f', 6, 64)
+
+	// Unless this flag is set, we don't want to reharvest things we already have
+	if !reharvest {
+		boolCmd := rc.Exists(key)
+		if boolCmd.Val() {
+			return fmt.Errorf("Record %v already exists.", key)
+		}
+	}
+
 	rc.Set(key, string(bytes), 0)
 	z := redis.Z{Score: score, Member: key}
 	rc.ZAdd(imageCatalogPrefix, z)
+	return nil
 }
 
 // DropIndex drops the main index containing all known catalog entries

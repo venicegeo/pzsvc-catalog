@@ -85,12 +85,20 @@ func provisionHandler(writer http.ResponseWriter, request *http.Request) {
 }
 
 func planetHandler(writer http.ResponseWriter, request *http.Request) {
-	if drop, err := strconv.ParseBool(request.FormValue("dropIndex")); (err == nil) && drop {
+	var (
+		drop, recurring, reharvest bool
+	)
+	if drop, _ = strconv.ParseBool(request.FormValue("dropIndex")); drop {
 		writer.Write([]byte("Dropping existing index.\n"))
 		catalog.DropIndex()
 	}
-	go harvestPlanet(request.FormValue("PL_API_KEY"))
+	recurring, _ = strconv.ParseBool(request.FormValue("recurring"))
+	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
+	go harvestPlanet(request.FormValue("PL_API_KEY"), reharvest)
 	writer.Write([]byte("Harvesting started. Check back later."))
+	if recurring {
+		log.Print("This thing should recur.")
+	}
 }
 
 func discoverHandler(writer http.ResponseWriter, request *http.Request) {
