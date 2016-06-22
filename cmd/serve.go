@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -66,6 +67,8 @@ func serve() {
 		})
 	}
 
+	go recurrentHandling()
+
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
 
@@ -92,12 +95,26 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte("Dropping existing index.\n"))
 		catalog.DropIndex()
 	}
-	recurring, _ = strconv.ParseBool(request.FormValue("recurring"))
 	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
-	go harvestPlanet(request.FormValue("PL_API_KEY"), reharvest)
+	planetKey := request.FormValue("PL_API_KEY")
+	go harvestPlanet(planetKey, reharvest)
 	writer.Write([]byte("Harvesting started. Check back later."))
+
+	recurring, _ = strconv.ParseBool(request.FormValue("recurring"))
 	if recurring {
+		catalog.SetRecurrence("pl", planetKey)
 		log.Print("This thing should recur.")
+	} else {
+		catalog.SetRecurrence("pl", "")
+	}
+}
+
+func recurrentHandling() {
+	for {
+		if planetKey := catalog.Recurrence("pl"); planetKey != "" {
+			harvestPlanet(planetKey, false)
+		}
+		time.Sleep(24 * time.Hour)
 	}
 }
 

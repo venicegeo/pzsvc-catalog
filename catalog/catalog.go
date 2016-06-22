@@ -375,6 +375,31 @@ func ImageIOReader(id, band, key string) (io.Reader, error) {
 	return ImageFeatureIOReader(feature, band, key)
 }
 
+// SetRecurrence sets a flag so that a daemon can determine
+// whether to rerun a harvesting operation
+// A blank value means "off"
+func SetRecurrence(domain string, value string) {
+	red, _ := RedisClient()
+	key := imageCatalogPrefix + ":" + domain + ":recur"
+	if value == "" {
+		red.Del(key)
+	} else {
+		red.Set(key, value, 0)
+	}
+}
+
+// Recurrence returns the recurrence flag for the specified domain
+// A blank response indicates unset
+func Recurrence(domain string) string {
+	red, _ := RedisClient()
+	key := imageCatalogPrefix + ":" + domain + ":recur"
+	if bc := red.Exists(key); bc.Err() == nil && bc.Val() {
+		sc := red.Get(key)
+		return sc.Val()
+	}
+	return ""
+}
+
 // ImageFeatureIOReader returns an io Reader for the requested band
 func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io.Reader, error) {
 	var (
