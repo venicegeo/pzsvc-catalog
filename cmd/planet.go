@@ -213,7 +213,7 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, reharvest bool) error {
 }
 
 func landsatIDToS3Path(id string) string {
-	result := "http://landsat-pds.s3.amazonaws.com/"
+	result := "https://landsat-pds.s3.amazonaws.com/"
 	if strings.HasPrefix(id, "LC8") {
 		result += "L8/"
 	}
