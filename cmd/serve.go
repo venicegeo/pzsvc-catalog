@@ -188,6 +188,7 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 		searchFeature.Bbox = geojson.NewBoundingBox(bboxString)
 
 		if _, responseString, err := catalog.GetImages(searchFeature, startIndex, startIndex+count-1); err == nil {
+			writer.Header().Set("Content-Type", "application/json")
 			writer.Write([]byte(responseString))
 		} else {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
