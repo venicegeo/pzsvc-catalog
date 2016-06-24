@@ -52,7 +52,7 @@ func DoPlanetRequest(method, inputURL, key string) (*http.Response, error) {
 	}
 
 	request.Header.Set("Authorization", "Basic "+getPlanetAuth(key))
-	return getHTTPClient().Do(request)
+	return HTTPClient().Do(request)
 }
 
 // UnmarshalPlanetResponse parses the response and returns a Planet Labs response object

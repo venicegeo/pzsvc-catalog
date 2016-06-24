@@ -38,7 +38,8 @@ var imageCatalogPrefix string
 
 var httpClient *http.Client
 
-func getHTTPClient() *http.Client {
+// HTTPClient is a factory method for a http.Client suitable for common operations
+func HTTPClient() *http.Client {
 	if httpClient == nil {
 		transport := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -375,16 +376,16 @@ func ImageIOReader(id, band, key string) (io.Reader, error) {
 	return ImageFeatureIOReader(feature, band, key)
 }
 
-// SetRecurrence sets a flag so that a daemon can determine
+// SetRecurrence sets a key so that a daemon can determine
 // whether to rerun a harvesting operation
 // A blank value means "off"
-func SetRecurrence(domain string, value string) {
+func SetRecurrence(domain string, flag bool, value string) {
 	red, _ := RedisClient()
 	key := imageCatalogPrefix + ":" + domain + ":recur"
-	if value == "" {
-		red.Del(key)
-	} else {
+	if flag {
 		red.Set(key, value, 0)
+	} else {
+		red.Del(key)
 	}
 }
 
@@ -425,7 +426,7 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 					if request, err = http.NewRequest("GET", urlString, nil); err != nil {
 						return nil, err
 					}
-					if response, err = getHTTPClient().Do(request); err != nil {
+					if response, err = HTTPClient().Do(request); err != nil {
 						return nil, err
 					}
 				}

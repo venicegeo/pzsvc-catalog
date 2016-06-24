@@ -15,9 +15,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,16 +28,54 @@ import (
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
-type harvestCallback func(*geojson.FeatureCollection, bool) error
+func planetHandler(writer http.ResponseWriter, request *http.Request) {
+	var (
+		drop, recurring, reharvest, event bool
+		optionsBytes                      []byte
+	)
+	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
+	event, _ = strconv.ParseBool(request.FormValue("event"))
+	planetKey := request.FormValue("PL_API_KEY")
+	pzAuth := request.Header.Get("Authorization")
+	recurring, _ = strconv.ParseBool(request.FormValue("recurring"))
+	options := HarvestOptions{
+		PlanetKey:           planetKey,
+		PiazzaAuthorization: pzAuth,
+		Reharvest:           reharvest,
+		Event:               event,
+		Recurring:           recurring}
 
-func harvestPlanetEndpoint(endpoint string, key string, callback harvestCallback, reharvest bool) {
+	// Let's test the credentials before we do anything
+	if err := testPiazzaAuth(pzAuth); err != nil {
+		if httpError, ok := err.(*HTTPError); ok {
+			http.Error(writer, httpError.Message, httpError.Status)
+		} else {
+			http.Error(writer, "Attempt to authenticate failed. "+err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	if recurring {
+		optionsBytes, _ = json.Marshal(options)
+		log.Print("This thing should recur.")
+	}
+	if drop, _ = strconv.ParseBool(request.FormValue("dropIndex")); drop {
+		writer.Write([]byte("Dropping existing index.\n"))
+		catalog.DropIndex()
+	}
+	catalog.SetRecurrence("pl", recurring, string(optionsBytes))
+
+	go harvestPlanet(options)
+	writer.Write([]byte("Harvesting started. Check back later."))
+}
+
+func harvestPlanetEndpoint(endpoint string, options HarvestOptions) {
 	var err error
 	for err == nil && (endpoint != "") {
 		var (
 			next        string
 			responseURL *url.URL
 		)
-		next, err = harvestPlanetOperation(endpoint, key, callback, reharvest)
+		next, err = harvestPlanetOperation(endpoint, options)
 		if (len(next) == 0) || (err != nil) {
 			break
 		}
@@ -48,7 +88,7 @@ func harvestPlanetEndpoint(endpoint string, key string, callback harvestCallback
 	}
 }
 
-func harvestPlanetOperation(endpoint string, key string, callback harvestCallback, reharvest bool) (string, error) {
+func harvestPlanetOperation(endpoint string, options HarvestOptions) (string, error) {
 	log.Printf("Harvesting %v", endpoint)
 	var (
 		response       *http.Response
@@ -56,14 +96,14 @@ func harvestPlanetOperation(endpoint string, key string, callback harvestCallbac
 		planetResponse catalog.PlanetResponse
 		err            error
 	)
-	if response, err = catalog.DoPlanetRequest("GET", endpoint, key); err != nil {
+	if response, err = catalog.DoPlanetRequest("GET", endpoint, options.PlanetKey); err != nil {
 		return "", err
 	}
 
 	if planetResponse, fc, err = catalog.UnmarshalPlanetResponse(response); err != nil {
 		return "", err
 	}
-	if err = callback(fc, reharvest); err == nil {
+	if err = options.callback(fc, options.Reharvest); err == nil {
 		err = harvestSanityCheck()
 	}
 
@@ -238,13 +278,15 @@ Harvest image metadata from Planet Labs
 
 This function will harvest metadata from Planet Labs, using the PL_API_KEY in the environment`,
 	Run: func(cmd *cobra.Command, args []string) {
-		harvestPlanet(planetKey, false)
+		options := HarvestOptions{PlanetKey: planetKey}
+		harvestPlanet(options)
 	},
 }
 
-func harvestPlanet(key string, reharvest bool) {
+func harvestPlanet(options HarvestOptions) {
 	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
-	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", key, storePlanetLandsat, reharvest)
+	options.callback = storePlanetLandsat
+	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", options)
 	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
 }
 

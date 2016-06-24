@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -84,37 +83,6 @@ func provisionHandler(writer http.ResponseWriter, request *http.Request) {
 		gj, _ := geojson.FeatureFromBytes(bytes)
 		bandValue := gj.Properties["bands"].(map[string]interface{})[band].(string)
 		writer.Write([]byte(bandValue))
-	}
-}
-
-func planetHandler(writer http.ResponseWriter, request *http.Request) {
-	var (
-		drop, recurring, reharvest bool
-	)
-	if drop, _ = strconv.ParseBool(request.FormValue("dropIndex")); drop {
-		writer.Write([]byte("Dropping existing index.\n"))
-		catalog.DropIndex()
-	}
-	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
-	planetKey := request.FormValue("PL_API_KEY")
-	go harvestPlanet(planetKey, reharvest)
-	writer.Write([]byte("Harvesting started. Check back later."))
-
-	recurring, _ = strconv.ParseBool(request.FormValue("recurring"))
-	if recurring {
-		catalog.SetRecurrence("pl", planetKey)
-		log.Print("This thing should recur.")
-	} else {
-		catalog.SetRecurrence("pl", "")
-	}
-}
-
-func recurrentHandling() {
-	for {
-		if planetKey := catalog.Recurrence("pl"); planetKey != "" {
-			harvestPlanet(planetKey, false)
-		}
-		time.Sleep(24 * time.Hour)
 	}
 }
 
