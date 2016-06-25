@@ -32,6 +32,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	var (
 		drop, recurring, reharvest, event bool
 		optionsBytes                      []byte
+		err                               error
 	)
 	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
 	event, _ = strconv.ParseBool(request.FormValue("event"))
@@ -46,7 +47,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 		Recurring:           recurring}
 
 	// Let's test the credentials before we do anything
-	if err := testPiazzaAuth(pzAuth); err != nil {
+	if err = testPiazzaAuth(pzAuth); err != nil {
 		if httpError, ok := err.(*HTTPError); ok {
 			http.Error(writer, httpError.Message, httpError.Status)
 		} else {
@@ -54,15 +55,24 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 		}
 		return
 	}
-	if recurring {
-		optionsBytes, _ = json.Marshal(options)
-		log.Print("This thing should recur.")
-	}
+
 	if drop, _ = strconv.ParseBool(request.FormValue("dropIndex")); drop {
 		writer.Write([]byte("Dropping existing index.\n"))
 		catalog.DropIndex()
 	}
+
+	if recurring {
+		optionsBytes, _ = json.Marshal(options)
+		log.Print("This thing should recur.")
+	}
 	catalog.SetRecurrence("pl", recurring, string(optionsBytes))
+
+	var heID string
+	if heID, err = harvestEventID(pzAuth); err != nil {
+		http.Error(writer, "Failed to retrieve harvest event ID: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	options.EventID = heID
 
 	go harvestPlanet(options)
 	writer.Write([]byte("Harvesting started. Check back later."))
