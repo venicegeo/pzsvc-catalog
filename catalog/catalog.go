@@ -327,7 +327,7 @@ func (err HTTPError) Error() string {
 
 // StoreFeature stores a feature into the catalog
 // using a key based on the feature's ID
-func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) error {
+func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) (string, error) {
 	rc, _ := RedisClient()
 	bytes, _ := json.Marshal(feature)
 	key := imageCatalogPrefix + ":" +
@@ -339,14 +339,14 @@ func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) error
 	if !reharvest {
 		boolCmd := rc.Exists(key)
 		if boolCmd.Val() {
-			return fmt.Errorf("Record %v already exists.", key)
+			return "", fmt.Errorf("Record %v already exists.", key)
 		}
 	}
 
 	rc.Set(key, string(bytes), 0)
 	z := redis.Z{Score: score, Member: key}
 	rc.ZAdd(imageCatalogPrefix, z)
-	return nil
+	return key, nil
 }
 
 // DropIndex drops the main index containing all known catalog entries

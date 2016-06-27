@@ -51,28 +51,27 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 		if httpError, ok := err.(*HTTPError); ok {
 			http.Error(writer, httpError.Message, httpError.Status)
 		} else {
-			http.Error(writer, "Attempt to authenticate failed. "+err.Error(), http.StatusInternalServerError)
+			http.Error(writer, "Unable to attempt authentication: "+err.Error(), http.StatusInternalServerError)
 		}
 		return
 	}
+
+	if event {
+		var heID string
+		if heID, err = harvestEventID(pzAuth); err != nil {
+			http.Error(writer, "Failed to retrieve harvest event ID: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		options.EventID = heID
+	}
+	optionsBytes, _ = json.Marshal(options)
+	// How do we turn off recurrence as opposed to just ignoring?
+	catalog.SetRecurrence("pl", recurring, string(optionsBytes))
 
 	if drop, _ = strconv.ParseBool(request.FormValue("dropIndex")); drop {
 		writer.Write([]byte("Dropping existing index.\n"))
 		catalog.DropIndex()
 	}
-
-	if recurring {
-		optionsBytes, _ = json.Marshal(options)
-		log.Print("This thing should recur.")
-	}
-	catalog.SetRecurrence("pl", recurring, string(optionsBytes))
-
-	var heID string
-	if heID, err = harvestEventID(pzAuth); err != nil {
-		http.Error(writer, "Failed to retrieve harvest event ID: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	options.EventID = heID
 
 	go harvestPlanet(options)
 	writer.Write([]byte("Harvesting started. Check back later."))
@@ -113,7 +112,7 @@ func harvestPlanetOperation(endpoint string, options HarvestOptions) (string, er
 	if planetResponse, fc, err = catalog.UnmarshalPlanetResponse(response); err != nil {
 		return "", err
 	}
-	if err = options.callback(fc, options.Reharvest); err == nil {
+	if err = options.callback(fc, options); err == nil {
 		err = harvestSanityCheck()
 	}
 
@@ -214,7 +213,7 @@ func whiteList(feature *geojson.Feature) bool {
 // 	return err
 // }
 
-func storePlanetLandsat(fc *geojson.FeatureCollection, reharvest bool) error {
+func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) error {
 	var (
 		score float64
 		err   error
@@ -255,8 +254,13 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, reharvest bool) error {
 		properties["bands"] = bands
 		feature := geojson.NewFeature(curr.Geometry, "landsat:"+id, properties)
 		feature.Bbox = curr.ForceBbox()
-		if err = catalog.StoreFeature(feature, score, reharvest); err != nil {
+		if id, err = catalog.StoreFeature(feature, score, options.Reharvest); err != nil {
 			break
+		}
+		if options.Event {
+			if err = issueEvent(options, id); err != nil {
+				return err
+			}
 		}
 	}
 	return err
