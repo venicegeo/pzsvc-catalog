@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -123,6 +124,10 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 		}
 
 		if acquiredDate := request.FormValue("acquiredDate"); acquiredDate != "" {
+			if _, err := time.Parse(time.RFC3339, acquiredDate); err != nil {
+				http.Error(writer, "Format of acquiredDate is invalid:  "+err.Error(), http.StatusBadRequest)
+				return
+			}
 			properties["acquiredDate"] = acquiredDate
 		}
 
