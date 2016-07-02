@@ -38,6 +38,13 @@ var imageCatalogPrefix string
 
 var httpClient *http.Client
 
+// SearchOptions is the options for a search request
+type SearchOptions struct {
+	NoCache      bool
+	MinimumIndex int64
+	MaximumIndex int64
+}
+
 // HTTPClient is a factory method for a http.Client suitable for common operations
 func HTTPClient() *http.Client {
 	if httpClient == nil {
@@ -58,9 +65,9 @@ func SetImageCatalogPrefix(prefix string) {
 
 // ImageDescriptors is the response to a Discover query
 type ImageDescriptors struct {
-	Count      int                        `json:"count"`
-	TotalCount int                        `json:"totalCount"`
-	StartIndex int                        `json:"startIndex"`
+	Count      int64                      `json:"count"`
+	TotalCount int64                      `json:"totalCount"`
+	StartIndex int64                      `json:"startIndex"`
 	Images     *geojson.FeatureCollection `json:"images"`
 }
 
@@ -71,8 +78,8 @@ func IndexSize() int64 {
 	return result.Val()
 }
 
-// GetImages returns images for the given set matching the criteria in the options
-func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescriptors, string, error) {
+// GetImages returns images for the given set matching the criteria in the input and options
+func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors, string, error) {
 
 	var (
 		result     ImageDescriptors
@@ -86,12 +93,12 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 
 	features = make([]*geojson.Feature, 0)
 	red, _ := RedisClient()
-	cacheName := getDiscoverCacheName(options)
+	cacheName := getDiscoverCacheName(input)
 
 	// If the cache does not exist, create it asynchronously
 	if cacheExists := client.Exists(cacheName); cacheExists.Err() == nil {
 		if !cacheExists.Val() {
-			go populateCache(options, cacheName)
+			go populateCache(input, cacheName)
 		}
 	} else {
 		RedisError(red, cacheExists.Err())
@@ -102,12 +109,12 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 	complete := false
 	for !complete {
 		card := red.ZCard(cacheName)
-		result.TotalCount = int(card.Val()) - 1 // ignore terminal element
+		result.TotalCount = card.Val() - 1 // ignore terminal element
 		if card.Err() != nil {
 			RedisError(red, card.Err())
 			return result, "", card.Err()
 			// See we have enough results already
-		} else if card.Val() > end {
+		} else if card.Val() > options.MaximumIndex {
 			complete = true
 			// See if the terminal object has been added
 		} else {
@@ -126,7 +133,7 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 		}
 	}
 
-	if ssc = red.ZRange(cacheName, start, end); ssc.Err() == nil {
+	if ssc = red.ZRange(cacheName, options.MinimumIndex, options.MaximumIndex); ssc.Err() == nil {
 		var (
 			cid *geojson.Feature
 		)
@@ -144,8 +151,8 @@ func GetImages(options *geojson.Feature, start int64, end int64) (ImageDescripto
 			}
 		}
 
-		result.Count = len(features)
-		result.StartIndex = int(start)
+		result.Count = int64(len(features))
+		result.StartIndex = options.MinimumIndex
 		fc = geojson.NewFeatureCollection(features)
 		result.Images = fc
 		bytes, _ := json.Marshal(result)
@@ -165,9 +172,37 @@ func getDiscoverCacheName(options *geojson.Feature) string {
 	return imageCatalogPrefix + string(bytes)
 }
 
+func getResults(input *geojson.Feature, options SearchOptions) ImageDescriptors {
+	var (
+		members  *redis.StringSliceCmd
+		cid      *geojson.Feature
+		result   ImageDescriptors
+		features []*geojson.Feature
+		fc       *geojson.FeatureCollection
+	)
+
+	red, _ := RedisClient()
+
+	// Perform a full table scan
+	if members = red.ZRange(imageCatalogPrefix, options.MinimumIndex, options.MaximumIndex); members.Err() != nil {
+		RedisError(red, members.Err())
+	}
+	for _, curr := range members.Val() {
+		cid, _ = geojson.FeatureFromBytes([]byte(curr))
+		features = append(features, cid)
+	}
+
+	fc = geojson.NewFeatureCollection(features)
+	result.Images = fc
+	result.Count = result.TotalCount
+	result.StartIndex = options.MinimumIndex
+
+	return result
+}
+
 // populateCache populates a cache corresponding
 // to the search criteria provided
-func populateCache(options *geojson.Feature, cacheName string) {
+func populateCache(input *geojson.Feature, cacheName string) {
 	red, _ := RedisClient()
 	var (
 		cid      *geojson.Feature
@@ -185,15 +220,16 @@ func populateCache(options *geojson.Feature, cacheName string) {
 	}
 	// Create the cache using a full table scan
 	if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
-		RedisError(red, intCmd.Err())
+		RedisError(red, members.Err())
 	}
+
 	for _, curr := range members.Val() {
-		if passImageDescriptorKey(curr, options) {
+		if passImageDescriptorKey(curr, input) {
 			// If there are no test properties, there is no point in inspecting the contents
-			if len(options.Properties) > 0 {
+			if len(input.Properties) > 0 {
 				idString = red.Get(curr).Val()
 				if cid, err = geojson.FeatureFromBytes([]byte(idString)); err == nil {
-					if !passImageDescriptor(cid, options) {
+					if !passImageDescriptor(cid, input) {
 						continue
 					}
 				}
@@ -211,6 +247,7 @@ func populateCache(options *geojson.Feature, cacheName string) {
 		}
 	}
 
+	log.Printf("populateCache found %v entries", count)
 	// Stick a terminal entry in the index so we know it is done
 	// This is the only one with a positive score
 	z.Member = ""
@@ -230,13 +267,21 @@ func passImageDescriptorKey(key string, test *geojson.Feature) bool {
 	if test == nil {
 		return true
 	}
+
 	keyParts := strings.Split(key, "&")
 	if len(keyParts) > 0 {
+		var (
+			bbox geojson.BoundingBox
+			err  error
+		)
 		part := keyParts[1]
-		bbox := geojson.NewBoundingBox(part)
+		keyParts = strings.Split(part, ",")
+		idCloudCover, _ := strconv.ParseFloat(keyParts[4], 64) // The 4th "value" is actually cloudCover
+		if bbox, err = geojson.NewBoundingBox(keyParts[0:4]); err != nil {
+			log.Printf("Expected a valid bounding box but received %v instead", err.Error())
+			return false
+		}
 		testCloudCover := test.PropertyFloat("cloudCover")
-		idCloudCover := bbox[4] // The 4th "value" is actually cloudCover
-		bbox = bbox[0:4]
 		if testCloudCover != 0 && idCloudCover != 0 && !math.IsNaN(testCloudCover) && !math.IsNaN(idCloudCover) {
 			if idCloudCover > testCloudCover {
 				return false

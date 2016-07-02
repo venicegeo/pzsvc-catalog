@@ -153,9 +153,15 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 
 		searchFeature := geojson.NewFeature(nil, "", properties)
 
-		searchFeature.Bbox = geojson.NewBoundingBox(bboxString)
+		var err error
+		if searchFeature.Bbox, err = geojson.NewBoundingBox(bboxString); err != nil {
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-		if _, responseString, err := catalog.GetImages(searchFeature, startIndex, startIndex+count-1); err == nil {
+		options := catalog.SearchOptions{MinimumIndex: startIndex, MaximumIndex: startIndex + count - 1}
+
+		if _, responseString, err := catalog.GetImages(searchFeature, options); err == nil {
 			writer.Header().Set("Content-Type", "application/json")
 			writer.Write([]byte(responseString))
 		} else {
