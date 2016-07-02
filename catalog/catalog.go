@@ -41,8 +41,9 @@ var httpClient *http.Client
 // SearchOptions is the options for a search request
 type SearchOptions struct {
 	NoCache      bool
-	MinimumIndex int64
-	MaximumIndex int64
+	MinimumIndex int
+	MaximumIndex int
+	Count        int
 }
 
 // HTTPClient is a factory method for a http.Client suitable for common operations
@@ -65,9 +66,9 @@ func SetImageCatalogPrefix(prefix string) {
 
 // ImageDescriptors is the response to a Discover query
 type ImageDescriptors struct {
-	Count      int64                      `json:"count"`
-	TotalCount int64                      `json:"totalCount"`
-	StartIndex int64                      `json:"startIndex"`
+	Count      int                        `json:"count"`
+	TotalCount int                        `json:"totalCount"`
+	StartIndex int                        `json:"startIndex"`
 	Images     *geojson.FeatureCollection `json:"images"`
 }
 
@@ -91,6 +92,10 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 		sc         *redis.StringCmd
 	)
 
+	if options.NoCache {
+		return getResults(input, options)
+	}
+
 	features = make([]*geojson.Feature, 0)
 	red, _ := RedisClient()
 	cacheName := getDiscoverCacheName(input)
@@ -108,13 +113,14 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 	// See if we can complete the requested query
 	complete := false
 	for !complete {
-		card := red.ZCard(cacheName)
-		result.TotalCount = card.Val() - 1 // ignore terminal element
-		if card.Err() != nil {
-			RedisError(red, card.Err())
-			return result, "", card.Err()
+		cardCmd := red.ZCard(cacheName)
+		card := int(cardCmd.Val())
+		result.TotalCount = card - 1 // ignore terminal element
+		if cardCmd.Err() != nil {
+			RedisError(red, cardCmd.Err())
+			return result, "", cardCmd.Err()
 			// See we have enough results already
-		} else if card.Val() > options.MaximumIndex {
+		} else if card > options.MaximumIndex {
 			complete = true
 			// See if the terminal object has been added
 		} else {
@@ -122,8 +128,8 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 			zrbs.Max = "1.5"
 			ssc = red.ZRangeByScore(cacheName, zrbs)
 			if ssc.Err() != nil {
-				RedisError(red, card.Err())
-				return result, "", card.Err()
+				RedisError(red, ssc.Err())
+				return result, "", ssc.Err()
 			} else if len(ssc.Val()) > 0 {
 				complete = true
 			}
@@ -133,7 +139,7 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 		}
 	}
 
-	if ssc = red.ZRange(cacheName, options.MinimumIndex, options.MaximumIndex); ssc.Err() == nil {
+	if ssc = red.ZRange(cacheName, int64(options.MinimumIndex), int64(options.MaximumIndex)); ssc.Err() == nil {
 		var (
 			cid *geojson.Feature
 		)
@@ -151,7 +157,7 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 			}
 		}
 
-		result.Count = int64(len(features))
+		result.Count = len(features)
 		result.StartIndex = options.MinimumIndex
 		fc = geojson.NewFeatureCollection(features)
 		result.Images = fc
@@ -172,32 +178,52 @@ func getDiscoverCacheName(options *geojson.Feature) string {
 	return imageCatalogPrefix + string(bytes)
 }
 
-func getResults(input *geojson.Feature, options SearchOptions) ImageDescriptors {
+// getResults returns the results of the requested query without the caching mechanism
+func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors, string, error) {
 	var (
 		members  *redis.StringSliceCmd
 		cid      *geojson.Feature
 		result   ImageDescriptors
+		idCmd    *redis.StringCmd
 		features []*geojson.Feature
 		fc       *geojson.FeatureCollection
+		err      error
 	)
 
 	red, _ := RedisClient()
 
 	// Perform a full table scan
-	if members = red.ZRange(imageCatalogPrefix, options.MinimumIndex, options.MaximumIndex); members.Err() != nil {
+	// TODO: Consider a ZScore operation especially if we have to/from dates available
+	if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
 		RedisError(red, members.Err())
+		return result, "", members.Err()
 	}
 	for _, curr := range members.Val() {
-		cid, _ = geojson.FeatureFromBytes([]byte(curr))
-		features = append(features, cid)
+		// First look at the key - we can often save time by not retrieving the value at all
+		if passImageDescriptorKey(curr, input) {
+			if idCmd = red.Get(curr); idCmd.Err() != nil {
+				return result, "", idCmd.Err()
+			}
+			if cid, err = geojson.FeatureFromBytes([]byte(idCmd.Val())); err == nil {
+				if passImageDescriptor(cid, input) {
+					features = append(features, cid)
+					if options.Count > 0 && (len(features) >= options.Count) {
+						break
+					}
+				}
+			} else {
+				return result, "", err
+			}
+		}
 	}
 
 	fc = geojson.NewFeatureCollection(features)
 	result.Images = fc
-	result.Count = result.TotalCount
+	result.Count = len(fc.Features)
 	result.StartIndex = options.MinimumIndex
 
-	return result
+	bytes, _ := json.Marshal(result)
+	return result, string(bytes), nil
 }
 
 // populateCache populates a cache corresponding

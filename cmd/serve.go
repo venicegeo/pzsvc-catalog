@@ -99,21 +99,27 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	if bboxString := request.FormValue("bbox"); bboxString == "" {
+	nocache, _ := strconv.ParseBool(request.FormValue("nocache"))
+
+	if bboxString := request.FormValue("bbox"); !nocache && bboxString == "" {
 		http.Error(writer, "A discovery request must contain a bounding box.", http.StatusBadRequest)
 	} else {
-		var count int64
+		var (
+			count      int
+			startIndex int
+		)
 
-		// Give ourselves a resonable default and maximum
+		// Give ourselves a resonable default and maximum count (when caching)
 		if parsedCount, err := strconv.ParseInt(request.FormValue("count"), 0, 32); err == nil {
-			count = int64(math.Min(float64(parsedCount), 1000))
+			if !nocache {
+				count = int(math.Min(float64(parsedCount), 1000))
+			}
 		} else {
 			count = 20
 		}
 
-		startIndex := int64(0)
-		if resp, err := strconv.ParseInt(request.FormValue("startIndex"), 0, 64); err == nil {
-			startIndex = resp
+		if resp, err := strconv.ParseInt(request.FormValue("startIndex"), 0, 32); err == nil {
+			startIndex = int(resp)
 		}
 
 		// Put most of the parameters into a properties map
@@ -159,12 +165,21 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 		searchFeature := geojson.NewFeature(nil, "", properties)
 
 		var err error
-		if searchFeature.Bbox, err = geojson.NewBoundingBox(bboxString); err != nil {
+		if searchFeature.Bbox, err = geojson.NewBoundingBox(bboxString); err == nil {
+			if searchFeature.Bbox.Antimeridian() {
+				http.Error(writer, "Bounding Box must not cross the antimeridian.", http.StatusBadRequest)
+				return
+			}
+		} else {
 			http.Error(writer, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		options := catalog.SearchOptions{MinimumIndex: startIndex, MaximumIndex: startIndex + count - 1}
+		options := catalog.SearchOptions{
+			MinimumIndex: startIndex,
+			Count:        count,
+			MaximumIndex: startIndex + count - 1,
+			NoCache:      nocache}
 
 		if _, responseString, err := catalog.GetImages(searchFeature, options); err == nil {
 			writer.Header().Set("Content-Type", "application/json")
