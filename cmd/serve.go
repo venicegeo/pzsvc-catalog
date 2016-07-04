@@ -137,6 +137,14 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 			properties["acquiredDate"] = acquiredDate
 		}
 
+		if maxAcquiredDate := request.FormValue("maxAcquiredDate"); maxAcquiredDate != "" {
+			if _, err := time.Parse(time.RFC3339, maxAcquiredDate); err != nil {
+				http.Error(writer, "Format of maxAcquiredDate is invalid:  "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			properties["maxAcquiredDate"] = maxAcquiredDate
+		}
+
 		if bitDepth, err := strconv.ParseInt(request.FormValue("bitDepth"), 0, 32); err == nil {
 			properties["bitDepth"] = int(bitDepth)
 		}

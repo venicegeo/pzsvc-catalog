@@ -231,22 +231,50 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 func populateCache(input *geojson.Feature, cacheName string) {
 	red, _ := RedisClient()
 	var (
-		cid      *geojson.Feature
-		idString string
-		err      error
-		z        redis.Z
-		intCmd   *redis.IntCmd
-		members  *redis.StringSliceCmd
-		count    int
+		cid             *geojson.Feature
+		idString        string
+		err             error
+		z               redis.Z
+		intCmd          *redis.IntCmd
+		members         *redis.StringSliceCmd
+		count           int
+		acquiredDate    time.Time
+		maxAcquiredDate time.Time
 	)
 
 	// Make a set of caches in case we want to nuke them later
 	if intCmd = red.SAdd(imageCatalogPrefix+"-caches", cacheName); intCmd.Err() != nil {
 		RedisError(red, intCmd.Err())
 	}
-	// Create the cache using a full table scan
-	if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
-		RedisError(red, members.Err())
+
+	if acquiredDateStr := input.PropertyString("acquiredDate"); acquiredDateStr != "" {
+		if acquiredDate, err = time.Parse(time.RFC3339, acquiredDateStr); err != nil {
+			log.Printf("Invalid date %v", acquiredDateStr)
+		}
+	}
+
+	if maxAcquiredDateStr := input.PropertyString("maxAcquiredDate"); maxAcquiredDateStr != "" {
+		if maxAcquiredDate, err = time.Parse(time.RFC3339, maxAcquiredDateStr); err != nil {
+			log.Printf("Invalid date %v", maxAcquiredDateStr)
+		}
+	}
+
+	if acquiredDate.IsZero() && maxAcquiredDate.IsZero() {
+		// Create the cache using a full table scan
+		if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
+			RedisError(red, members.Err())
+		}
+	} else {
+		// Use the score to limit the result set
+		var opt redis.ZRangeByScore
+		if maxAcquiredDate.IsZero() {
+			maxAcquiredDate = time.Now()
+		}
+		opt.Max = strconv.FormatInt(-acquiredDate.Unix(), 10)
+		opt.Min = strconv.FormatInt(-maxAcquiredDate.Unix(), 10)
+		if members = red.ZRangeByScore(imageCatalogPrefix, opt); members.Err() != nil {
+			RedisError(red, members.Err())
+		}
 	}
 
 	for _, curr := range members.Val() {
@@ -273,7 +301,6 @@ func populateCache(input *geojson.Feature, cacheName string) {
 		}
 	}
 
-	log.Printf("populateCache found %v entries", count)
 	// Stick a terminal entry in the index so we know it is done
 	// This is the only one with a positive score
 	z.Member = ""
@@ -340,22 +367,6 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 	if testBeachfrontScore != 0 && idBeachfrontScore != 0 && !math.IsNaN(testBeachfrontScore) && !math.IsNaN(idBeachfrontScore) {
 		if idBeachfrontScore < testBeachfrontScore {
 			return false
-		}
-	}
-
-	testAcquiredDate := test.PropertyString("acquiredDate")
-	idAcquiredDate := id.PropertyString("acquiredDate")
-	if testAcquiredDate != "" {
-		var (
-			idTime, testTime time.Time
-			err              error
-		)
-		if idTime, err = time.Parse(time.RFC3339, idAcquiredDate); err == nil {
-			if testTime, err = time.Parse(time.RFC3339, testAcquiredDate); err == nil {
-				if idTime.Before(testTime) {
-					return false
-				}
-			}
 		}
 	}
 
