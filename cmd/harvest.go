@@ -26,7 +26,7 @@ import (
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pz-gocommon/elasticsearch"
-	pzworkflow "github.com/venicegeo/pz-workflow/server"
+	pzworkflow "github.com/venicegeo/pz-workflow/workflow"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
@@ -134,7 +134,7 @@ func harvestEventID(auth string) (string, error) {
 	for _, eventType := range eventTypes {
 		if eventType.Name == harvestEventKey {
 			// TODO: Sanity check to make sure this object has the right signature
-			result = eventType.ID.String()
+			result = eventType.EventTypeId.String()
 			break
 		}
 	}
@@ -186,7 +186,7 @@ func addEventType(auth string) (string, error) {
 	if err = json.Unmarshal(eventTypeBytes, &eventType); err != nil {
 		return result, err
 	}
-	result = eventType.ID.String()
+	result = eventType.EventTypeId.String()
 	return result, err
 }
 
