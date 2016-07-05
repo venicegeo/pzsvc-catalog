@@ -360,7 +360,7 @@ func passImageDescriptorKey(key string, test *geojson.Feature) bool {
 			return false
 		}
 		testCloudCover := test.PropertyFloat("cloudCover")
-		if testCloudCover != 0 && idCloudCover != 0 && !math.IsNaN(testCloudCover) && !math.IsNaN(idCloudCover) {
+		if !math.IsNaN(testCloudCover) && !math.IsNaN(idCloudCover) {
 			if idCloudCover > testCloudCover {
 				return false
 			}
