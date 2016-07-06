@@ -217,9 +217,19 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) e
 	var (
 		score float64
 		err   error
+		flag  bool
 	)
 	for _, curr := range fc.Features {
+		flag = false
+		if mp, ok := curr.Geometry.(*geojson.MultiPolygon); ok {
+			bbox := mp.ForceBbox()
+			flag = true
+			log.Printf("Found MultiPolygon feature %v %v", curr.String(), bbox.String())
+		}
 		if !whiteList(curr) {
+			if flag {
+				log.Print("And we dropped it!")
+			}
 			continue
 		}
 		score = float64(0)
@@ -255,6 +265,10 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) e
 		feature := geojson.NewFeature(curr.Geometry, "landsat:"+id, properties)
 		feature.Bbox = curr.ForceBbox()
 		if id, err = catalog.StoreFeature(feature, score, options.Reharvest); err != nil {
+			log.Print(err.Error())
+			if flag {
+				log.Print("And that is why we dropped it!")
+			}
 			break
 		}
 		if options.Event {
