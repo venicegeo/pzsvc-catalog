@@ -98,7 +98,7 @@ func harvestEventID(auth string) (string, error) {
 		result     string
 		etBytes    []byte
 		eventTypes []pzworkflow.EventType
-		httpReturn pzworkflow.HTTPReturn
+		// httpReturn pzworkflow.HTTPReturn
 	)
 	requestURL := "https://pz-gateway." + domain + "/eventType?per_page=10000"
 	if request, err = http.NewRequest("GET", requestURL, nil); err != nil {
@@ -116,14 +116,6 @@ func harvestEventID(auth string) (string, error) {
 
 	defer response.Body.Close()
 	if etBytes, err = ioutil.ReadAll(response.Body); err != nil {
-		return result, err
-	}
-
-	if err = json.Unmarshal(etBytes, &httpReturn); err != nil {
-		return result, err
-	}
-
-	if etBytes, err = json.Marshal(httpReturn.Data); err != nil {
 		return result, err
 	}
 
