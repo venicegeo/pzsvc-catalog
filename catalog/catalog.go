@@ -28,6 +28,8 @@ import (
 
 	"gopkg.in/redis.v3"
 
+	"github.com/paulsmith/gogeos/geos"
+	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
 )
 
@@ -35,7 +37,7 @@ const maxCacheSize = 1000
 const maxCacheTimeout = "1h"
 
 var imageCatalogPrefix string
-
+var subIndexMap map[string]*geos.Geometry
 var httpClient *http.Client
 
 // SearchOptions is the options for a search request
@@ -44,6 +46,7 @@ type SearchOptions struct {
 	MinimumIndex int
 	MaximumIndex int
 	Count        int
+	SubIndex     string
 }
 
 // HTTPClient is a factory method for a http.Client suitable for common operations
@@ -62,6 +65,11 @@ func HTTPClient() *http.Client {
 // when it is necessary to override the default
 func SetImageCatalogPrefix(prefix string) {
 	imageCatalogPrefix = prefix
+}
+
+// ImageCatalogPrefix returns the prefix for this instance
+func ImageCatalogPrefix() string {
+	return imageCatalogPrefix
 }
 
 // ImageDescriptors is the response to a Discover query
@@ -170,7 +178,7 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 	return result, "", ssc.Err()
 }
 
-// GetDiscoverCacheName returns the name of the index corresponding
+// getDiscoverCacheName returns the name of the index corresponding
 // to the search criteria provided
 func getDiscoverCacheName(options *geojson.Feature) string {
 	bytes, _ := json.Marshal(options)
@@ -412,10 +420,10 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 
 // GetImageMetadata returns the image metadata as a GeoJSON feature
 func GetImageMetadata(id string) (*geojson.Feature, error) {
-	rc, _ := RedisClient()
+	red, _ := RedisClient()
 	var stringCmd *redis.StringCmd
 	key := imageCatalogPrefix + ":" + id
-	if stringCmd = rc.Get(key); stringCmd.Err() != nil {
+	if stringCmd = red.Get(key); stringCmd.Err() != nil {
 		return nil, stringCmd.Err()
 	}
 	metadataString := stringCmd.Val()
@@ -435,7 +443,7 @@ func (err HTTPError) Error() string {
 // StoreFeature stores a feature into the catalog
 // using a key based on the feature's ID
 func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) (string, error) {
-	rc, _ := RedisClient()
+	red, _ := RedisClient()
 	bytes, _ := json.Marshal(feature)
 	key := imageCatalogPrefix + ":" +
 		feature.ID + "&" +
@@ -444,15 +452,30 @@ func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) (stri
 
 	// Unless this flag is set, we don't want to reharvest things we already have
 	if !reharvest {
-		boolCmd := rc.Exists(key)
+		boolCmd := red.Exists(key)
 		if boolCmd.Val() {
 			return "", fmt.Errorf("Record %v already exists.", key)
 		}
 	}
 
-	rc.Set(key, string(bytes), 0)
+	red.Set(key, string(bytes), 0)
 	z := redis.Z{Score: score, Member: key}
-	rc.ZAdd(imageCatalogPrefix, z)
+	red.ZAdd(imageCatalogPrefix, z)
+
+	if subIndexMap != nil {
+		var overlaps bool
+		for name := range subIndexMap {
+			if geosFeature, err := geojsongeos.GeosFromGeoJSON(feature); err == nil {
+				if overlaps, err = geosFeature.Overlaps(subIndexMap[name]); err != nil {
+					return "", err
+				} else if overlaps {
+					red.ZAdd(name, z)
+				}
+			} else {
+				return "", err
+			}
+		}
+	}
 	return key, nil
 }
 
@@ -545,4 +568,31 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 		return result, nil
 	}
 	return nil, fmt.Errorf("Requested band \"%v\" not found in image %v.", band, feature.ID)
+}
+
+// SetSubIndex sets a filter geometry for an index
+func SetSubIndex(name string, geometry *geos.Geometry) {
+	if subIndexMap == nil {
+		subIndexMap = make(map[string]*geos.Geometry)
+	}
+	subIndexMap[name] = geometry
+}
+
+// PopulateSubIndex populates a sub-index for later use
+func PopulateSubIndex(name string) {
+	var (
+		overlaps bool
+		z        redis.Z
+	)
+	red, _ := RedisClient()
+	ids, _, _ := getResults(geojson.NewFeature(nil, "", nil), SearchOptions{})
+	geometry := subIndexMap[name]
+	for _, image := range ids.Images.Features {
+		geosFeature, _ := geojsongeos.GeosFromGeoJSON(image)
+		if overlaps, _ = geosFeature.Overlaps(geometry); overlaps {
+			z.Score = image.PropertyFloat("score")
+			z.Member = image.ID
+			red.ZAdd(name, z)
+		}
+	}
 }

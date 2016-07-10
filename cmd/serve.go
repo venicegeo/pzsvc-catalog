@@ -51,6 +51,7 @@ func serve() {
 		})
 		router.HandleFunc("/discover", discoverHandler)
 		router.HandleFunc("/planet", planetHandler)
+		router.HandleFunc("/subindex", subIndexHandler)
 		router.HandleFunc("/provision/{id}/{band}", provisionHandler)
 		// 	case "/help":
 		// 		fmt.Fprintf(writer, "We're sorry, help is not yet implemented.\n")
