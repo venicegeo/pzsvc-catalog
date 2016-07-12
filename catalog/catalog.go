@@ -37,7 +37,7 @@ const maxCacheSize = 1000
 const maxCacheTimeout = "1h"
 
 var imageCatalogPrefix string
-var subIndexMap map[string]*geos.Geometry
+var subIndexMap map[string](map[string]*geos.PGeometry)
 var httpClient *http.Client
 
 // SearchOptions is the options for a search request
@@ -442,7 +442,7 @@ func (err HTTPError) Error() string {
 
 // StoreFeature stores a feature into the catalog
 // using a key based on the feature's ID
-func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) (string, error) {
+func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
 	red, _ := RedisClient()
 	bytes, _ := json.Marshal(feature)
 	key := imageCatalogPrefix + ":" +
@@ -459,17 +459,19 @@ func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) (stri
 	}
 
 	red.Set(key, string(bytes), 0)
-	z := redis.Z{Score: score, Member: key}
+	z := redis.Z{Score: calculateScore(feature), Member: key}
 	red.ZAdd(imageCatalogPrefix, z)
 
 	if subIndexMap != nil {
 		var overlaps bool
 		for name := range subIndexMap {
 			if geosFeature, err := geojsongeos.GeosFromGeoJSON(feature); err == nil {
-				if overlaps, err = geosFeature.Overlaps(subIndexMap[name]); err != nil {
-					return "", err
-				} else if overlaps {
-					red.ZAdd(name, z)
+				for _, pg := range subIndexMap[name] {
+					if overlaps, err = pg.Overlaps(geosFeature); err != nil {
+						return "", err
+					} else if overlaps {
+						red.ZAdd(name, z)
+					}
 				}
 			} else {
 				return "", err
@@ -477,6 +479,15 @@ func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) (stri
 		}
 	}
 	return key, nil
+}
+
+func calculateScore(feature *geojson.Feature) float64 {
+	var score float64
+	acquiredDateStr := feature.PropertyString("acquiredDate")
+	if adTime, err := time.Parse(time.RFC3339, acquiredDateStr); err == nil {
+		score = float64(-adTime.Unix())
+	}
+	return score
 }
 
 // DropIndex drops the main index containing all known catalog entries
@@ -571,28 +582,41 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 }
 
 // SetSubIndex sets a filter geometry for an index
-func SetSubIndex(name string, geometry *geos.Geometry) {
+func SetSubIndex(name string, geometries map[string]*geos.PGeometry) {
 	if subIndexMap == nil {
-		subIndexMap = make(map[string]*geos.Geometry)
+		subIndexMap = make(map[string]map[string]*geos.PGeometry)
 	}
-	subIndexMap[name] = geometry
+	subIndexMap[name] = geometries
 }
 
 // PopulateSubIndex populates a sub-index for later use
-func PopulateSubIndex(name string) {
+func PopulateSubIndex(name string) int64 {
 	var (
-		overlaps bool
-		z        redis.Z
+		intersects bool
+		z          redis.Z
+		intCmd     *redis.IntCmd
+		flag       bool
 	)
 	red, _ := RedisClient()
 	ids, _, _ := getResults(geojson.NewFeature(nil, "", nil), SearchOptions{})
-	geometry := subIndexMap[name]
 	for _, image := range ids.Images.Features {
 		geosFeature, _ := geojsongeos.GeosFromGeoJSON(image)
-		if overlaps, _ = geosFeature.Overlaps(geometry); overlaps {
-			z.Score = image.PropertyFloat("score")
-			z.Member = image.ID
-			red.ZAdd(name, z)
+		for _, pg := range subIndexMap[name] {
+			if intersects, _ = pg.Intersects(geosFeature); intersects {
+				z.Score = calculateScore(image)
+				if math.IsNaN(z.Score) {
+					if !flag {
+						log.Printf("%v", image.Properties)
+						flag = true
+					}
+				} else {
+					z.Member = image.ID
+					red.ZAdd(name, z)
+					log.Printf("added %v with %v", z.Member, z.Score)
+				}
+			}
 		}
 	}
+	intCmd = red.ZCard(name)
+	return intCmd.Val()
 }

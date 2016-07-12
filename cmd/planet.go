@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
@@ -30,21 +29,23 @@ import (
 
 func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	var (
-		drop, recurring, reharvest, event bool
-		optionsBytes                      []byte
-		err                               error
+		drop, recurring, reharvest, event, cap bool
+		optionsBytes                           []byte
+		err                                    error
 	)
 	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
 	event, _ = strconv.ParseBool(request.FormValue("event"))
 	planetKey := request.FormValue("PL_API_KEY")
 	pzAuth := request.Header.Get("Authorization")
 	recurring, _ = strconv.ParseBool(request.FormValue("recurring"))
+	cap, _ = strconv.ParseBool(request.FormValue("cap"))
 	options := HarvestOptions{
 		PlanetKey:           planetKey,
 		PiazzaAuthorization: pzAuth,
 		Reharvest:           reharvest,
 		Event:               event,
-		Recurring:           recurring}
+		Recurring:           recurring,
+		Cap:                 cap}
 
 	// Let's test the credentials before we do anything
 	if err = testPiazzaAuth(pzAuth); err != nil {
@@ -90,11 +91,14 @@ func harvestPlanetEndpoint(endpoint string, options HarvestOptions) {
 		}
 		responseURL, err = url.Parse(next)
 		endpoint = responseURL.RequestURI()
-		// break // uncomment this line temporarily cap the dataset size
+		if options.Cap {
+			break
+		}
 	}
 	if err != nil {
 		log.Print(err.Error())
 	}
+	log.Printf("Harvested %v images.", catalog.IndexSize())
 }
 
 func harvestPlanetOperation(endpoint string, options HarvestOptions) (string, error) {
@@ -215,24 +219,12 @@ func whiteList(feature *geojson.Feature) bool {
 
 func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) error {
 	var (
-		score float64
-		err   error
-		flag  bool
+		err error
 	)
 	for _, curr := range fc.Features {
-		flag = false
-		if mp, ok := curr.Geometry.(*geojson.MultiPolygon); ok {
-			bbox := mp.ForceBbox()
-			flag = true
-			log.Printf("Found MultiPolygon feature %v %v", curr.String(), bbox.String())
-		}
 		if !whiteList(curr) {
-			if flag {
-				log.Print("And we dropped it!")
-			}
 			continue
 		}
-		score = float64(0)
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		id := curr.ID
@@ -243,11 +235,6 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) e
 		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
 		adString := curr.Properties["acquired"].(string)
 		properties["acquiredDate"] = adString
-		if adTime, err2 := time.Parse(time.RFC3339, adString); err2 == nil {
-			score = float64(-adTime.Unix())
-		} else {
-			score = 0
-		}
 		properties["sensorName"] = "Landsat8"
 		bands := make(map[string]string)
 		bands["coastal"] = url + id + "_B1.TIF"
@@ -264,11 +251,8 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) e
 		properties["bands"] = bands
 		feature := geojson.NewFeature(curr.Geometry, "landsat:"+id, properties)
 		feature.Bbox = curr.ForceBbox()
-		if id, err = catalog.StoreFeature(feature, score, options.Reharvest); err != nil {
+		if id, err = catalog.StoreFeature(feature, options.Reharvest); err != nil {
 			log.Print(err.Error())
-			if flag {
-				log.Print("And that is why we dropped it!")
-			}
 			break
 		}
 		if options.Event {

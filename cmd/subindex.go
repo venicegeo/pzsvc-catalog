@@ -16,8 +16,10 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 
@@ -93,6 +95,7 @@ func createSubindex(subIndex SubIndex) {
 		fc       *geojson.FeatureCollection
 		ok       bool
 		geometry *geos.Geometry
+		err      error
 	)
 
 	v := url.Values{}
@@ -102,14 +105,14 @@ func createSubindex(subIndex SubIndex) {
 	v.Set("request", "GetFeature")
 	v.Set("typeName", subIndex.FeatureType)
 
-	qurl := subIndex.WfsURL + v.Encode()
+	qurl := subIndex.WfsURL + "?" + v.Encode()
 
 	request, _ = http.NewRequest("GET", qurl, nil)
 	response, _ = catalog.HTTPClient().Do(request)
 
 	// Check for HTTP errors
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		log.Printf("Received %v: \"%v\" when performing a GetFeature request on %v", response.StatusCode, response.Status, subIndex.WfsURL)
+		log.Printf("Received %v: \"%v\" when performing a GetFeature request on %v\n%#v", response.StatusCode, response.Status, subIndex.WfsURL, request)
 		return
 	}
 
@@ -118,10 +121,108 @@ func createSubindex(subIndex SubIndex) {
 
 	gjIfc, _ = geojson.Parse(bytes)
 	if fc, ok = gjIfc.(*geojson.FeatureCollection); ok {
-		geometry, _ = geojsongeos.GeosFromGeoJSON(fc)
-		// This will ensure the sub-index is considered in subsequent operations
-		catalog.SetSubIndex(subIndex.SubIndexID, geometry)
-		// This will ensure the sub-index is considered with already-harvested images
-		catalog.PopulateSubIndex(subIndex.SubIndexID)
+		log.Printf("%v returned %v responses.", qurl, len(fc.Features))
+		var (
+			tiles           [180 * 360]*geos.Geometry
+			tiledGeometries [180 * 360][]*geos.Geometry
+			coords          [5]geos.Coord
+		)
+
+		for lonIndex := 0; lonIndex < 360; lonIndex++ {
+			for latIndex := 0; latIndex < 180; latIndex++ {
+				coords[0] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex))
+				coords[1] = geos.NewCoord(float64(-180.0+lonIndex+1), float64(-90.0+latIndex))
+				coords[2] = geos.NewCoord(float64(-180.0+lonIndex+1), float64(-90.0+latIndex+1))
+				coords[3] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex+1))
+				coords[4] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex))
+				tiles[lonIndex+(360*latIndex)], _ = geos.NewLinearRing(coords[:]...)
+			}
+		}
+		for inx := 0; (inx < 3000) && (inx < len(fc.Features)); inx++ {
+			feature := fc.Features[inx]
+			// for _, feature := range fc.Features {
+			if geometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
+				log.Print(err.Error())
+				return
+			}
+			for index, box := range tiles {
+				var (
+					intersection *geos.Geometry
+					intersects   bool
+				)
+				if intersects, err = box.Intersects(geometry); err != nil {
+					log.Printf("Error in Intersects on %v: %v", index, err.Error())
+					return
+				} else if intersects {
+					if intersection, err = box.Intersection(geometry); err != nil {
+						log.Printf("Error performing intersection on %v: %v Trying boundary instead", index, err.Error())
+						if geometry, err = geometry.Boundary(); err != nil {
+							log.Printf("Can't retrieve boundary either: %v. Continuing.", err.Error())
+							continue
+						}
+						if intersection, err = box.Intersection(geometry); err != nil {
+							log.Printf("Still can't perform intersection, even on boundary: %v. Continuing.", err.Error())
+							continue
+						}
+					} else if intersection == nil {
+						log.Printf("Received null intersection on %v", index)
+						continue
+					}
+					tiledGeometries[index] = append(tiledGeometries[index], intersection)
+				}
+			}
+			log.Printf("Finished %v", feature.ID)
+		}
+		tileMap := tileGeometries(tiledGeometries)
+		log.Printf("geometry map has %v tiles", len(tileMap))
+		// // This will ensure the sub-index is considered in subsequent operations
+		catalog.SetSubIndex(subIndex.SubIndexID, tileMap)
+		// // This will ensure the sub-index is considered with already-harvested images
+		count := catalog.PopulateSubIndex(subIndex.SubIndexID)
+		log.Printf("Added %v entries to %v.", count, subIndex.SubIndexID)
+		// counter := 0
+		// for _, value := range tileMap {
+		// 	counter++
+		// 	log.Printf("How about: %v", value.String())
+		// 	if counter > 5 {
+		// 		break
+		// 	}
+		// }
 	}
+}
+
+func tileGeometries(tiles [180 * 360][]*geos.Geometry) map[string]*geos.PGeometry {
+	result := make(map[string]*geos.PGeometry)
+	for index, tgs := range tiles {
+		latIndex := int(math.Floor(float64(index) / 180.0))
+		lonIndex := int(math.Mod(float64(index), 180))
+		key := fmt.Sprintf("%03d%03d", lonIndex, latIndex)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Recovered %v\n%v", r, tgs)
+			}
+		}()
+		switch len(tgs) {
+		case 0:
+			//noop
+			// log.Printf("Index %v was empty.", index)
+		case 1:
+			result[key] = geos.PrepareGeometry(tgs[0])
+			log.Printf("Finished index %v.", index)
+		default:
+			if geometry, err := geos.NewCollection(geos.MULTIPOLYGON, tgs[:]...); err == nil {
+				if geometry, err = geometry.Buffer(0.0); err == nil {
+					result[key] = geos.PrepareGeometry(geometry)
+					log.Printf("Finished index %v - it had multiple geometries.", index)
+				} else {
+					log.Printf("Received %v when preparing geometry for %v", err.Error(), index)
+					return result
+				}
+			} else {
+				log.Printf("Received %v when creating a multipolygon for %v", err.Error(), index)
+				return result
+			}
+		}
+	}
+	return result
 }

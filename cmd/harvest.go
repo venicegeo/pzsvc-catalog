@@ -55,6 +55,7 @@ type HarvestOptions struct {
 	PiazzaAuthorization string `json:"pz-auth"`
 	callback            harvestCallback
 	EventID             string
+	Cap                 bool `json:"cap"`
 }
 
 // HTTPError represents any HTTP error

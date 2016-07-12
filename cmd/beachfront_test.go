@@ -29,7 +29,7 @@ func TestBeachfront(t *testing.T) {
 
 	catalog.SetImageCatalogPrefix(prefix)
 	imageDescriptor := geojson.NewFeature(nil, "12345", properties)
-	catalog.StoreFeature(imageDescriptor, -5, false)
+	catalog.StoreFeature(imageDescriptor, false)
 	rc, _ := catalog.RedisClient()
 	boolResult := rc.Exists(prefix + ":" + imageDescriptor.ID)
 	if !boolResult.Val() {
