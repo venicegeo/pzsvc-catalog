@@ -77,6 +77,7 @@ type ImageDescriptors struct {
 	Count      int                        `json:"count"`
 	TotalCount int                        `json:"totalCount"`
 	StartIndex int                        `json:"startIndex"`
+	SubIndex   string                     `json:"subIndex"`
 	Images     *geojson.FeatureCollection `json:"images"`
 }
 
@@ -165,6 +166,7 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 			}
 		}
 
+		result.SubIndex = cacheName
 		result.Count = len(features)
 		result.StartIndex = options.MinimumIndex
 		fc = geojson.NewFeatureCollection(features)
