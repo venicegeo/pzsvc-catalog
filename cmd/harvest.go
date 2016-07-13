@@ -32,9 +32,13 @@ import (
 
 type harvestCallback func(*geojson.FeatureCollection, HarvestOptions) error
 
-const harvestEventKey = "beachfront:harvest:new-image-harvested"
+const harvestEventTypeRoot = "beachfront:harvest:new-image-harvested"
 
-var domain = os.Getenv("DOMAIN")
+var (
+	domain = os.Getenv("DOMAIN")
+
+	harvestEventTypeID string
+)
 
 func recurrentHandling() {
 	for {
@@ -66,79 +70,70 @@ type HTTPError struct {
 func (err HTTPError) Error() string {
 	return fmt.Sprintf("%d: %v", err.Status, err.Message)
 }
-
-func testPiazzaAuth(auth string) error {
-	var (
-		request  *http.Request
-		response *http.Response
-		err      error
-	)
-	inputURL := "https://pz-gateway." + domain + "/"
-	if request, err = http.NewRequest("GET", inputURL, nil); err != nil {
-		return err
-	}
-	request.Header.Set("Authorization", auth)
-	if response, err = catalog.HTTPClient().Do(request); err != nil {
-		return err
-	}
-
-	// Check for HTTP errors
-	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return &HTTPError{Status: response.StatusCode, Message: "Failed to authenticate: " + response.Status}
-	}
-
-	return nil
-}
-
-func harvestEventID(auth string) (string, error) {
+func getHarvestEventTypeID(auth string) (string, error) {
 	var (
 		request    *http.Request
 		response   *http.Response
 		err        error
-		result     string
 		etBytes    []byte
 		eventTypes []pzworkflow.EventType
-		// httpReturn pzworkflow.HTTPReturn
+		httpReturn pzworkflow.HTTPReturn
 	)
-	requestURL := "https://pz-gateway." + domain + "/eventType?per_page=10000"
-	if request, err = http.NewRequest("GET", requestURL, nil); err != nil {
-		return result, err
-	}
-	request.Header.Set("Authorization", auth)
-	if response, err = catalog.HTTPClient().Do(request); err != nil {
-		return result, err
-	}
+	if harvestEventTypeID == "" {
+		requestURL := "https://pz-gateway." + domain + "/eventType?per_page=10000"
+		log.Print(requestURL)
+		if request, err = http.NewRequest("GET", requestURL, nil); err != nil {
+			return harvestEventTypeID, err
+		}
+		request.Header.Set("Authorization", auth)
+		if response, err = catalog.HTTPClient().Do(request); err != nil {
+			return harvestEventTypeID, err
+		}
 
-	// Check for HTTP errors
-	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return result, &HTTPError{Status: response.StatusCode, Message: "Failed to retrieve harvest event ID: " + response.Status}
-	}
+		// Check for HTTP errors
+		if response.StatusCode < 200 || response.StatusCode > 299 {
+			return harvestEventTypeID, &HTTPError{Status: response.StatusCode, Message: "Failed to retrieve harvest event ID: " + response.Status}
+		}
 
-	defer response.Body.Close()
-	if etBytes, err = ioutil.ReadAll(response.Body); err != nil {
-		return result, err
-	}
+		defer response.Body.Close()
+		if etBytes, err = ioutil.ReadAll(response.Body); err != nil {
+			return harvestEventTypeID, err
+		}
 
-	if err = json.Unmarshal(etBytes, &eventTypes); err != nil {
-		return result, err
-	}
+		log.Print(string(etBytes))
 
-	for _, eventType := range eventTypes {
-		if eventType.Name == harvestEventKey {
-			// TODO: Sanity check to make sure this object has the right signature
-			result = eventType.EventTypeId.String()
-			break
+		if err = json.Unmarshal(etBytes, &httpReturn); err != nil {
+			return harvestEventTypeID, err
+		}
+
+		if err = json.Unmarshal([]byte(httpReturn.Data), []eventTypes); err != nil {
+			return harvestEventTypeID, err
+		}
+
+		for version := 0; ; version++ {
+			foundMatch := false
+			eventTypeName := fmt.Sprintf("%v:%v", harvestEventTypeRoot, version)
+			for _, eventType := range eventTypes {
+				if eventType.Name == eventTypeName {
+					foundMatch = true
+					// TODO: Sanity check to make sure this object has the right signature
+					harvestEventTypeID = eventType.EventTypeId.String()
+					break
+				}
+			}
+			if !foundMatch {
+				if harvestEventTypeID, err = addEventType(eventTypeName, auth); err == nil {
+					break
+				} else {
+					return "", err
+				}
+			}
 		}
 	}
-
-	if result == "" {
-		return addEventType(auth)
-	}
-
-	return result, nil
+	return harvestEventTypeID, nil
 }
 
-func addEventType(auth string) (string, error) {
+func addEventType(eventTypeName, auth string) (string, error) {
 	var (
 		request        *http.Request
 		response       *http.Response
@@ -147,7 +142,7 @@ func addEventType(auth string) (string, error) {
 		eventTypeBytes []byte
 		eventType      pzworkflow.EventType
 	)
-	eventType.Name = harvestEventKey
+	eventType.Name = eventTypeName
 	eventType.Mapping = make(map[string]elasticsearch.MappingElementTypeName)
 	eventType.Mapping["ImageID"] = "string"
 	if eventTypeBytes, err = json.Marshal(&eventType); err != nil {
@@ -179,6 +174,7 @@ func addEventType(auth string) (string, error) {
 		return result, err
 	}
 	result = eventType.EventTypeId.String()
+
 	return result, err
 }
 
@@ -236,4 +232,26 @@ func issueEvent(options HarvestOptions, imageID string) error {
 
 	return err
 
+}
+
+func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
+	var (
+		err error
+		id  string
+	)
+	pzAuth := request.Header.Get("Authorization")
+	if err = testPiazzaAuth(pzAuth); err != nil {
+		if httpError, ok := err.(*HTTPError); ok {
+			http.Error(writer, httpError.Message, httpError.Status)
+		} else {
+			http.Error(writer, "Unable to attempt authentication: "+err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if id, err = getHarvestEventTypeID(pzAuth); err == nil {
+		writer.Write([]byte(id))
+	} else {
+		http.Error(writer, "Failed to retrieve Event Type ID: "+err.Error(), http.StatusInternalServerError)
+	}
 }

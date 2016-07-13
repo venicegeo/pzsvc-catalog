@@ -49,6 +49,7 @@ func serve() {
 		router.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 			fmt.Fprintf(writer, "Hi")
 		})
+		router.HandleFunc("/eventTypeID", eventTypeIDHandler)
 		router.HandleFunc("/discover", discoverHandler)
 		router.HandleFunc("/planet", planetHandler)
 		router.HandleFunc("/provision/{id}/{band}", provisionHandler)
@@ -217,4 +218,27 @@ Serve the image catalog`,
 	Run: func(cmd *cobra.Command, args []string) {
 		serve()
 	},
+}
+
+func testPiazzaAuth(auth string) error {
+	var (
+		request  *http.Request
+		response *http.Response
+		err      error
+	)
+	inputURL := "https://pz-gateway." + domain + "/eventType"
+	if request, err = http.NewRequest("GET", inputURL, nil); err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", auth)
+	if response, err = catalog.HTTPClient().Do(request); err != nil {
+		return err
+	}
+
+	// Check for HTTP errors
+	if response.StatusCode < 200 || response.StatusCode > 299 {
+		return &HTTPError{Status: response.StatusCode, Message: "Failed to authenticate: " + response.Status}
+	}
+
+	return nil
 }

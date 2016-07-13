@@ -58,7 +58,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 
 	if event {
 		var heID string
-		if heID, err = harvestEventID(pzAuth); err != nil {
+		if heID, err = getHarvestEventTypeID(pzAuth); err != nil {
 			http.Error(writer, "Failed to retrieve harvest event ID: "+err.Error(), http.StatusBadRequest)
 			return
 		}
