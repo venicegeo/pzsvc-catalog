@@ -26,6 +26,7 @@ import (
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pz-gocommon/elasticsearch"
+	gocommon "github.com/venicegeo/pz-gocommon/gocommon"
 	pzworkflow "github.com/venicegeo/pz-workflow/workflow"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
@@ -72,12 +73,12 @@ func (err HTTPError) Error() string {
 }
 func getHarvestEventTypeID(auth string) (string, error) {
 	var (
-		request    *http.Request
-		response   *http.Response
-		err        error
-		etBytes    []byte
-		eventTypes []pzworkflow.EventType
-		httpReturn pzworkflow.HTTPReturn
+		request      *http.Request
+		response     *http.Response
+		err          error
+		etBytes      []byte
+		eventTypes   []pzworkflow.EventType
+		jsonResponse gocommon.JsonResponse
 	)
 	if harvestEventTypeID == "" {
 		requestURL := "https://pz-gateway." + domain + "/eventType?per_page=10000"
@@ -100,15 +101,19 @@ func getHarvestEventTypeID(auth string) (string, error) {
 			return harvestEventTypeID, err
 		}
 
-		log.Print(string(etBytes))
-
-		if err = json.Unmarshal(etBytes, &httpReturn); err != nil {
+		if err = json.Unmarshal(etBytes, &jsonResponse); err != nil {
 			return harvestEventTypeID, err
 		}
 
-		if err = json.Unmarshal([]byte(httpReturn.Data), []eventTypes); err != nil {
+		if etBytes, err = json.Marshal(jsonResponse.Data); err != nil {
 			return harvestEventTypeID, err
 		}
+
+		if err = json.Unmarshal(etBytes, &eventTypes); err != nil {
+			return harvestEventTypeID, err
+		}
+
+		log.Printf("%v", eventTypes)
 
 		for version := 0; ; version++ {
 			foundMatch := false
@@ -130,6 +135,7 @@ func getHarvestEventTypeID(auth string) (string, error) {
 			}
 		}
 	}
+	log.Printf("harvestEventTypeID %v", harvestEventTypeID)
 	return harvestEventTypeID, nil
 }
 
@@ -149,6 +155,8 @@ func addEventType(eventTypeName, auth string) (string, error) {
 		return result, err
 	}
 
+	log.Printf("ET 1 %v", eventType)
+
 	requestURL := "https://pz-gateway." + domain + "/eventType"
 	if request, err = http.NewRequest("POST", requestURL, bytes.NewBuffer(eventTypeBytes)); err != nil {
 		return result, err
@@ -160,6 +168,8 @@ func addEventType(eventTypeName, auth string) (string, error) {
 		return result, err
 	}
 
+	log.Printf("ETB 1 %v", string(eventTypeBytes))
+
 	// Check for HTTP errors
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		return result, &HTTPError{Status: response.StatusCode, Message: "Failed to add harvest event: " + response.Status}
@@ -170,9 +180,13 @@ func addEventType(eventTypeName, auth string) (string, error) {
 		return result, err
 	}
 
+	log.Printf("ETB 2 %v", string(eventTypeBytes))
+
 	if err = json.Unmarshal(eventTypeBytes, &eventType); err != nil {
 		return result, err
 	}
+	log.Printf("ET 2 %v", eventType)
+
 	result = eventType.EventTypeId.String()
 
 	return result, err
