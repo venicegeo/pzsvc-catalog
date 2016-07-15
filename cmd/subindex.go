@@ -135,12 +135,12 @@ func createSubindex(subIndex SubIndex) {
 				coords[2] = geos.NewCoord(float64(-180.0+lonIndex+1), float64(-90.0+latIndex+1))
 				coords[3] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex+1))
 				coords[4] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex))
-				tiles[lonIndex+(360*latIndex)], _ = geos.NewLinearRing(coords[:]...)
+				tiles[lonIndex+(360*latIndex)], _ = geos.NewPolygon(coords[:])
 			}
 		}
-		for inx := 0; (inx < 3000) && (inx < len(fc.Features)); inx++ {
-			feature := fc.Features[inx]
-			// for _, feature := range fc.Features {
+		// for inx := 0; (inx < 100) && (inx < len(fc.Features)); inx++ {
+		// 	feature := fc.Features[inx]
+		for _, feature := range fc.Features {
 			if geometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
 				log.Print(err.Error())
 				return
@@ -150,7 +150,7 @@ func createSubindex(subIndex SubIndex) {
 					intersection *geos.Geometry
 					intersects   bool
 				)
-				if intersects, err = box.Intersects(geometry); err != nil {
+				if intersects, err = box.Contains(geometry); err != nil {
 					log.Printf("Error in Intersects on %v: %v", index, err.Error())
 					return
 				} else if intersects {
@@ -171,8 +171,8 @@ func createSubindex(subIndex SubIndex) {
 					tiledGeometries[index] = append(tiledGeometries[index], intersection)
 				}
 			}
-			log.Printf("Finished %v", feature.ID)
 		}
+		log.Printf("Found %v tiled geometries", len(tiledGeometries))
 		tileMap := tileGeometries(tiledGeometries)
 		log.Printf("geometry map has %v tiles", len(tileMap))
 		// // This will ensure the sub-index is considered in subsequent operations
@@ -191,8 +191,10 @@ func createSubindex(subIndex SubIndex) {
 	}
 }
 
-func tileGeometries(tiles [180 * 360][]*geos.Geometry) map[string]*geos.PGeometry {
-	result := make(map[string]*geos.PGeometry)
+// func tileGeometries(tiles [180 * 360][]*geos.Geometry) map[string]*geos.PGeometry {
+func tileGeometries(tiles [180 * 360][]*geos.Geometry) map[string]*geos.Geometry {
+	result := make(map[string]*geos.Geometry)
+	// result := make(map[string]*geos.PGeometry)
 	for index, tgs := range tiles {
 		latIndex := int(math.Floor(float64(index) / 180.0))
 		lonIndex := int(math.Mod(float64(index), 180))
@@ -207,20 +209,21 @@ func tileGeometries(tiles [180 * 360][]*geos.Geometry) map[string]*geos.PGeometr
 			//noop
 			// log.Printf("Index %v was empty.", index)
 		case 1:
-			result[key] = geos.PrepareGeometry(tgs[0])
-			log.Printf("Finished index %v.", index)
+			result[key] = tgs[0]
+			// result[key] = geos.PrepareGeometry(tgs[0])
 		default:
-			if geometry, err := geos.NewCollection(geos.MULTIPOLYGON, tgs[:]...); err == nil {
+			if geometry, err := geos.NewCollection(geos.GEOMETRYCOLLECTION, tgs[:]...); err == nil {
 				if geometry, err = geometry.Buffer(0.0); err == nil {
-					result[key] = geos.PrepareGeometry(geometry)
-					log.Printf("Finished index %v - it had multiple geometries.", index)
+					result[key] = geometry
+					// result[key] = geos.PrepareGeometry(geometry)
+					log.Printf("Index from collection %v: %v", index, geometry.String())
 				} else {
-					log.Printf("Received %v when preparing geometry for %v", err.Error(), index)
-					return result
+					log.Printf("Received %v when buffering geometry for %v. Continuing.", err.Error(), index)
+					continue
 				}
 			} else {
-				log.Printf("Received %v when creating a multipolygon for %v", err.Error(), index)
-				return result
+				log.Printf("Received %v when creating a collection for %v. Continuing", err.Error(), index)
+				continue
 			}
 		}
 	}

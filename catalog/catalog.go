@@ -37,7 +37,9 @@ const maxCacheSize = 1000
 const maxCacheTimeout = "1h"
 
 var imageCatalogPrefix string
-var subIndexMap map[string](map[string]*geos.PGeometry)
+var subIndexMap map[string](map[string]*geos.Geometry)
+
+// var subIndexMap map[string](map[string]*geos.PGeometry)
 var httpClient *http.Client
 
 // SearchOptions is the options for a search request
@@ -584,9 +586,11 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 }
 
 // SetSubIndex sets a filter geometry for an index
-func SetSubIndex(name string, geometries map[string]*geos.PGeometry) {
+func SetSubIndex(name string, geometries map[string]*geos.Geometry) {
+	// func SetSubIndex(name string, geometries map[string]*geos.PGeometry) {
 	if subIndexMap == nil {
-		subIndexMap = make(map[string]map[string]*geos.PGeometry)
+		subIndexMap = make(map[string]map[string]*geos.Geometry)
+		// subIndexMap = make(map[string]map[string]*geos.PGeometry)
 	}
 	subIndexMap[name] = geometries
 }
@@ -602,9 +606,9 @@ func PopulateSubIndex(name string) int64 {
 	red, _ := RedisClient()
 	ids, _, _ := getResults(geojson.NewFeature(nil, "", nil), SearchOptions{})
 	for _, image := range ids.Images.Features {
-		geosFeature, _ := geojsongeos.GeosFromGeoJSON(image)
-		for _, pg := range subIndexMap[name] {
-			if intersects, _ = pg.Intersects(geosFeature); intersects {
+		geos, _ := geojsongeos.GeosFromGeoJSON(image)
+		for _, geos2 := range subIndexMap[name] {
+			if intersects, _ = geos2.Intersects(geos); intersects {
 				z.Score = calculateScore(image)
 				if math.IsNaN(z.Score) {
 					if !flag {
@@ -614,7 +618,7 @@ func PopulateSubIndex(name string) int64 {
 				} else {
 					z.Member = image.ID
 					red.ZAdd(name, z)
-					log.Printf("added %v with %v", z.Member, z.Score)
+					// log.Printf("added %v with %v", z.Member, z.Score)
 				}
 			}
 		}
