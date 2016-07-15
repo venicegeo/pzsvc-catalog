@@ -184,8 +184,8 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 
 // getDiscoverCacheName returns the name of the index corresponding
 // to the search criteria provided
-func getDiscoverCacheName(options *geojson.Feature) string {
-	bytes, _ := json.Marshal(options)
+func getDiscoverCacheName(input *geojson.Feature) string {
+	bytes, _ := json.Marshal(input)
 	// TODO: we may wish to hash this index name
 	return imageCatalogPrefix + string(bytes)
 }
@@ -197,6 +197,7 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 		cid             *geojson.Feature
 		result          ImageDescriptors
 		idCmd           *redis.StringCmd
+		indexName       string
 		features        []*geojson.Feature
 		fc              *geojson.FeatureCollection
 		acquiredDate    time.Time
@@ -217,9 +218,15 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 		}
 	}
 
+	if subIndex := input.PropertyString("subIndex"); subIndex == "" {
+		indexName = imageCatalogPrefix
+	} else {
+		indexName = subIndex
+	}
+
 	if acquiredDate.IsZero() && maxAcquiredDate.IsZero() {
 		// Create the cache using a full table scan
-		if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
+		if members = red.ZRange(indexName, 0, -1); members.Err() != nil {
 			RedisError(red, members.Err())
 		}
 	} else {
@@ -230,7 +237,7 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 		}
 		opt.Max = strconv.FormatInt(-acquiredDate.Unix(), 10)
 		opt.Min = strconv.FormatInt(-maxAcquiredDate.Unix(), 10)
-		if members = red.ZRangeByScore(imageCatalogPrefix, opt); members.Err() != nil {
+		if members = red.ZRangeByScore(indexName, opt); members.Err() != nil {
 			RedisError(red, members.Err())
 		}
 	}
@@ -270,6 +277,7 @@ func populateCache(input *geojson.Feature, cacheName string) {
 	var (
 		cid             *geojson.Feature
 		idString        string
+		indexName       string
 		err             error
 		z               redis.Z
 		intCmd          *redis.IntCmd
@@ -296,9 +304,15 @@ func populateCache(input *geojson.Feature, cacheName string) {
 		}
 	}
 
+	if subIndex := input.PropertyString("subIndex"); subIndex == "" {
+		indexName = imageCatalogPrefix
+	} else {
+		indexName = subIndex
+	}
+
 	if acquiredDate.IsZero() && maxAcquiredDate.IsZero() {
 		// Create the cache using a full table scan
-		if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
+		if members = red.ZRange(indexName, 0, -1); members.Err() != nil {
 			RedisError(red, members.Err())
 		}
 	} else {
@@ -309,7 +323,7 @@ func populateCache(input *geojson.Feature, cacheName string) {
 		}
 		opt.Max = strconv.FormatInt(-acquiredDate.Unix(), 10)
 		opt.Min = strconv.FormatInt(-maxAcquiredDate.Unix(), 10)
-		if members = red.ZRangeByScore(imageCatalogPrefix, opt); members.Err() != nil {
+		if members = red.ZRangeByScore(indexName, opt); members.Err() != nil {
 			RedisError(red, members.Err())
 		}
 	}
@@ -326,7 +340,7 @@ func populateCache(input *geojson.Feature, cacheName string) {
 				}
 			}
 			z.Member = curr
-			z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
+			z.Score = red.ZScore(indexName, curr).Val()
 			if result := red.ZAdd(cacheName, z); result.Err() != nil {
 				RedisError(red, result.Err())
 			}
@@ -605,18 +619,21 @@ func PopulateSubIndex(name string) int64 {
 	)
 	red, _ := RedisClient()
 	ids, _, _ := getResults(geojson.NewFeature(nil, "", nil), SearchOptions{})
-	for _, image := range ids.Images.Features {
-		geos, _ := geojsongeos.GeosFromGeoJSON(image)
+	for _, feature := range ids.Images.Features {
+		geos, _ := geojsongeos.GeosFromGeoJSON(feature)
 		for _, geos2 := range subIndexMap[name] {
 			if intersects, _ = geos2.Intersects(geos); intersects {
-				z.Score = calculateScore(image)
+				z.Score = calculateScore(feature)
 				if math.IsNaN(z.Score) {
 					if !flag {
-						log.Printf("%v", image.Properties)
+						log.Printf("%v", feature.Properties)
 						flag = true
 					}
 				} else {
-					z.Member = image.ID
+					z.Member = imageCatalogPrefix + ":" +
+						feature.ID + "&" +
+						feature.ForceBbox().String() + "," +
+						strconv.FormatFloat(feature.PropertyFloat("cloudCover"), 'f', 6, 64)
 					red.ZAdd(name, z)
 					// log.Printf("added %v with %v", z.Member, z.Score)
 				}

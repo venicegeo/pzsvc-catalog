@@ -101,6 +101,7 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 		maxAcquiredDate string
 		bandsString     string
 		bboxString      string
+		subIndex        string
 		cloudCover      float64
 		beachfrontScore float64
 	)
@@ -196,11 +197,16 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	if subIndex = request.FormValue("subIndex"); subIndex != "" {
+		properties["subIndex"] = subIndex
+	}
+
 	options := catalog.SearchOptions{
 		MinimumIndex: startIndex,
 		Count:        count,
 		MaximumIndex: startIndex + count - 1,
-		NoCache:      nocache}
+		NoCache:      nocache,
+		SubIndex:     subIndex}
 
 	if _, responseString, err := catalog.GetImages(searchFeature, options); err == nil {
 		writer.Header().Set("Content-Type", "application/json")

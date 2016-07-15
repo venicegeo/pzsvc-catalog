@@ -216,7 +216,6 @@ func tileGeometries(tiles [180 * 360][]*geos.Geometry) map[string]*geos.Geometry
 				if geometry, err = geometry.Buffer(0.0); err == nil {
 					result[key] = geometry
 					// result[key] = geos.PrepareGeometry(geometry)
-					log.Printf("Index from collection %v: %v", index, geometry.String())
 				} else {
 					log.Printf("Received %v when buffering geometry for %v. Continuing.", err.Error(), index)
 					continue
