@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/venicegeo/geojson-go/geojson"
@@ -81,7 +82,7 @@ func getHarvestEventTypeID(auth string) (string, error) {
 		jsonResponse gocommon.JsonResponse
 	)
 	if harvestEventTypeID == "" {
-		requestURL := "https://pz-gateway." + domain + "/eventType?per_page=10000"
+		requestURL := "https://pz-gateway." + domain + "/eventType?perPage=10000"
 		log.Print(requestURL)
 		if request, err = http.NewRequest("GET", requestURL, nil); err != nil {
 			return harvestEventTypeID, err
@@ -113,18 +114,20 @@ func getHarvestEventTypeID(auth string) (string, error) {
 			return harvestEventTypeID, err
 		}
 
-		log.Printf("%v", eventTypes)
-
 		for version := 0; ; version++ {
 			foundMatch := false
 			eventTypeName := fmt.Sprintf("%v:%v", harvestEventTypeRoot, version)
 			for _, eventType := range eventTypes {
 				if eventType.Name == eventTypeName {
 					foundMatch = true
-					// TODO: Sanity check to make sure this object has the right signature
-					harvestEventTypeID = eventType.EventTypeId.String()
-					break
+					if reflect.DeepEqual(eventType.Mapping, harvestEventType().Mapping) {
+						harvestEventTypeID = eventType.EventTypeId.String()
+						break
+					}
 				}
+			}
+			if harvestEventTypeID != "" {
+				break
 			}
 			if !foundMatch {
 				if harvestEventTypeID, err = addEventType(eventTypeName, auth); err == nil {
@@ -135,27 +138,43 @@ func getHarvestEventTypeID(auth string) (string, error) {
 			}
 		}
 	}
-	log.Printf("harvestEventTypeID %v", harvestEventTypeID)
 	return harvestEventTypeID, nil
+}
+
+var harvestET pzworkflow.EventType
+
+func harvestEventType() pzworkflow.EventType {
+	if harvestET.Mapping == nil {
+		harvestET.Mapping = make(map[string]elasticsearch.MappingElementTypeName)
+		harvestET.Mapping["imageID"] = elasticsearch.MappingElementTypeString
+		harvestET.Mapping["acquiredDate"] = elasticsearch.MappingElementTypeString
+		harvestET.Mapping["cloudCover"] = elasticsearch.MappingElementTypeLong
+		harvestET.Mapping["resolution"] = elasticsearch.MappingElementTypeLong
+		harvestET.Mapping["sensorName"] = elasticsearch.MappingElementTypeString
+		harvestET.Mapping["minx"] = elasticsearch.MappingElementTypeLong
+		harvestET.Mapping["miny"] = elasticsearch.MappingElementTypeLong
+		harvestET.Mapping["maxx"] = elasticsearch.MappingElementTypeLong
+		harvestET.Mapping["maxy"] = elasticsearch.MappingElementTypeLong
+		harvestET.Mapping["link"] = elasticsearch.MappingElementTypeString
+	}
+	return harvestET
 }
 
 func addEventType(eventTypeName, auth string) (string, error) {
 	var (
-		request        *http.Request
-		response       *http.Response
-		err            error
-		result         string
-		eventTypeBytes []byte
-		eventType      pzworkflow.EventType
+		request         *http.Request
+		response        *http.Response
+		err             error
+		result          string
+		eventTypeBytes  []byte
+		eventType       pzworkflow.EventType
+		resultEventType pzworkflow.EventType
 	)
+	eventType = harvestEventType()
 	eventType.Name = eventTypeName
-	eventType.Mapping = make(map[string]elasticsearch.MappingElementTypeName)
-	eventType.Mapping["ImageID"] = "string"
 	if eventTypeBytes, err = json.Marshal(&eventType); err != nil {
 		return result, err
 	}
-
-	log.Printf("ET 1 %v", eventType)
 
 	requestURL := "https://pz-gateway." + domain + "/eventType"
 	if request, err = http.NewRequest("POST", requestURL, bytes.NewBuffer(eventTypeBytes)); err != nil {
@@ -164,11 +183,10 @@ func addEventType(eventTypeName, auth string) (string, error) {
 
 	request.Header.Set("Authorization", auth)
 	request.Header.Set("Content-Type", "application/json")
+
 	if response, err = catalog.HTTPClient().Do(request); err != nil {
 		return result, err
 	}
-
-	log.Printf("ETB 1 %v", string(eventTypeBytes))
 
 	// Check for HTTP errors
 	if response.StatusCode < 200 || response.StatusCode > 299 {
@@ -180,14 +198,11 @@ func addEventType(eventTypeName, auth string) (string, error) {
 		return result, err
 	}
 
-	log.Printf("ETB 2 %v", string(eventTypeBytes))
-
-	if err = json.Unmarshal(eventTypeBytes, &eventType); err != nil {
+	if err = json.Unmarshal(eventTypeBytes, &resultEventType); err != nil {
 		return result, err
 	}
-	log.Printf("ET 2 %v", eventType)
 
-	result = eventType.EventTypeId.String()
+	result = resultEventType.EventTypeId.String()
 
 	return result, err
 }
