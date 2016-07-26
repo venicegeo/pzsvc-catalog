@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/redis.v3"
 
+	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
 )
 
@@ -36,6 +37,7 @@ const maxCacheTimeout = "1h"
 
 var imageCatalogPrefix string
 
+// var subIndexMap map[string](map[string]*geos.PGeometry)
 var httpClient *http.Client
 
 // SearchOptions is the options for a search request
@@ -44,6 +46,7 @@ type SearchOptions struct {
 	MinimumIndex int
 	MaximumIndex int
 	Count        int
+	SubIndex     string
 }
 
 // HTTPClient is a factory method for a http.Client suitable for common operations
@@ -69,6 +72,7 @@ type ImageDescriptors struct {
 	Count      int                        `json:"count"`
 	TotalCount int                        `json:"totalCount"`
 	StartIndex int                        `json:"startIndex"`
+	SubIndex   string                     `json:"subIndex"`
 	Images     *geojson.FeatureCollection `json:"images"`
 }
 
@@ -157,6 +161,7 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 			}
 		}
 
+		result.SubIndex = cacheName
 		result.Count = len(features)
 		result.StartIndex = options.MinimumIndex
 		fc = geojson.NewFeatureCollection(features)
@@ -170,10 +175,10 @@ func GetImages(input *geojson.Feature, options SearchOptions) (ImageDescriptors,
 	return result, "", ssc.Err()
 }
 
-// GetDiscoverCacheName returns the name of the index corresponding
+// getDiscoverCacheName returns the name of the index corresponding
 // to the search criteria provided
-func getDiscoverCacheName(options *geojson.Feature) string {
-	bytes, _ := json.Marshal(options)
+func getDiscoverCacheName(input *geojson.Feature) string {
+	bytes, _ := json.Marshal(input)
 	// TODO: we may wish to hash this index name
 	return imageCatalogPrefix + string(bytes)
 }
@@ -185,6 +190,7 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 		cid             *geojson.Feature
 		result          ImageDescriptors
 		idCmd           *redis.StringCmd
+		indexName       string
 		features        []*geojson.Feature
 		fc              *geojson.FeatureCollection
 		acquiredDate    time.Time
@@ -205,9 +211,15 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 		}
 	}
 
+	if subIndex := input.PropertyString("subindex"); subIndex == "" {
+		indexName = imageCatalogPrefix
+	} else {
+		indexName = subIndex
+	}
+
 	if acquiredDate.IsZero() && maxAcquiredDate.IsZero() {
 		// Create the cache using a full table scan
-		if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
+		if members = red.ZRange(indexName, 0, -1); members.Err() != nil {
 			RedisError(red, members.Err())
 		}
 	} else {
@@ -218,7 +230,7 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 		}
 		opt.Max = strconv.FormatInt(-acquiredDate.Unix(), 10)
 		opt.Min = strconv.FormatInt(-maxAcquiredDate.Unix(), 10)
-		if members = red.ZRangeByScore(imageCatalogPrefix, opt); members.Err() != nil {
+		if members = red.ZRangeByScore(indexName, opt); members.Err() != nil {
 			RedisError(red, members.Err())
 		}
 	}
@@ -251,6 +263,14 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 	return result, string(bytes), nil
 }
 
+// Make a set of caches in case we want to nuke them later
+func registerCache(cacheName string) {
+	red, _ := RedisClient()
+	if intCmd := red.SAdd(imageCatalogPrefix+"-caches", cacheName); intCmd.Err() != nil {
+		RedisError(red, intCmd.Err())
+	}
+}
+
 // populateCache populates a cache corresponding
 // to the search criteria provided
 func populateCache(input *geojson.Feature, cacheName string) {
@@ -258,19 +278,16 @@ func populateCache(input *geojson.Feature, cacheName string) {
 	var (
 		cid             *geojson.Feature
 		idString        string
+		indexName       string
 		err             error
 		z               redis.Z
-		intCmd          *redis.IntCmd
 		members         *redis.StringSliceCmd
 		count           int
 		acquiredDate    time.Time
 		maxAcquiredDate time.Time
 	)
 
-	// Make a set of caches in case we want to nuke them later
-	if intCmd = red.SAdd(imageCatalogPrefix+"-caches", cacheName); intCmd.Err() != nil {
-		RedisError(red, intCmd.Err())
-	}
+	registerCache(cacheName)
 
 	if acquiredDateStr := input.PropertyString("acquiredDate"); acquiredDateStr != "" {
 		if acquiredDate, err = time.Parse(time.RFC3339, acquiredDateStr); err != nil {
@@ -284,9 +301,15 @@ func populateCache(input *geojson.Feature, cacheName string) {
 		}
 	}
 
+	if subIndex := input.PropertyString("subIndex"); subIndex == "" {
+		indexName = imageCatalogPrefix
+	} else {
+		indexName = subIndex
+	}
+
 	if acquiredDate.IsZero() && maxAcquiredDate.IsZero() {
 		// Create the cache using a full table scan
-		if members = red.ZRange(imageCatalogPrefix, 0, -1); members.Err() != nil {
+		if members = red.ZRange(indexName, 0, -1); members.Err() != nil {
 			RedisError(red, members.Err())
 		}
 	} else {
@@ -297,7 +320,7 @@ func populateCache(input *geojson.Feature, cacheName string) {
 		}
 		opt.Max = strconv.FormatInt(-acquiredDate.Unix(), 10)
 		opt.Min = strconv.FormatInt(-maxAcquiredDate.Unix(), 10)
-		if members = red.ZRangeByScore(imageCatalogPrefix, opt); members.Err() != nil {
+		if members = red.ZRangeByScore(indexName, opt); members.Err() != nil {
 			RedisError(red, members.Err())
 		}
 	}
@@ -314,7 +337,7 @@ func populateCache(input *geojson.Feature, cacheName string) {
 				}
 			}
 			z.Member = curr
-			z.Score = red.ZScore(imageCatalogPrefix, curr).Val()
+			z.Score = red.ZScore(indexName, curr).Val()
 			if result := red.ZAdd(cacheName, z); result.Err() != nil {
 				RedisError(red, result.Err())
 			}
@@ -412,10 +435,10 @@ func passImageDescriptor(id, test *geojson.Feature) bool {
 
 // GetImageMetadata returns the image metadata as a GeoJSON feature
 func GetImageMetadata(id string) (*geojson.Feature, error) {
-	rc, _ := RedisClient()
+	red, _ := RedisClient()
 	var stringCmd *redis.StringCmd
 	key := imageCatalogPrefix + ":" + id
-	if stringCmd = rc.Get(key); stringCmd.Err() != nil {
+	if stringCmd = red.Get(key); stringCmd.Err() != nil {
 		return nil, stringCmd.Err()
 	}
 	metadataString := stringCmd.Val()
@@ -434,8 +457,8 @@ func (err HTTPError) Error() string {
 
 // StoreFeature stores a feature into the catalog
 // using a key based on the feature's ID
-func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) (string, error) {
-	rc, _ := RedisClient()
+func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
+	red, _ := RedisClient()
 	bytes, _ := json.Marshal(feature)
 	key := imageCatalogPrefix + ":" +
 		feature.ID + "&" +
@@ -444,16 +467,42 @@ func StoreFeature(feature *geojson.Feature, score float64, reharvest bool) (stri
 
 	// Unless this flag is set, we don't want to reharvest things we already have
 	if !reharvest {
-		boolCmd := rc.Exists(key)
+		boolCmd := red.Exists(key)
 		if boolCmd.Val() {
 			return "", fmt.Errorf("Record %v already exists.", key)
 		}
 	}
 
-	rc.Set(key, string(bytes), 0)
-	z := redis.Z{Score: score, Member: key}
-	rc.ZAdd(imageCatalogPrefix, z)
+	red.Set(key, string(bytes), 0)
+	z := redis.Z{Score: calculateScore(feature), Member: key}
+	red.ZAdd(imageCatalogPrefix, z)
+
+	if subindexMap != nil {
+		var overlaps bool
+		for name := range subindexMap {
+			if geosFeature, err := geojsongeos.GeosFromGeoJSON(feature); err == nil {
+				for _, pg := range subindexMap[name].TileMap {
+					if overlaps, err = pg.Overlaps(geosFeature); err != nil {
+						return "", err
+					} else if overlaps {
+						red.ZAdd(name, z)
+					}
+				}
+			} else {
+				return "", err
+			}
+		}
+	}
 	return key, nil
+}
+
+func calculateScore(feature *geojson.Feature) float64 {
+	var score float64
+	acquiredDateStr := feature.PropertyString("acquiredDate")
+	if adTime, err := time.Parse(time.RFC3339, acquiredDateStr); err == nil {
+		score = float64(-adTime.Unix())
+	}
+	return score
 }
 
 // DropIndex drops the main index containing all known catalog entries
