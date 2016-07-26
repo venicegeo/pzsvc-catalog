@@ -28,7 +28,6 @@ import (
 
 	"gopkg.in/redis.v3"
 
-	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
 )
@@ -37,7 +36,6 @@ const maxCacheSize = 1000
 const maxCacheTimeout = "1h"
 
 var imageCatalogPrefix string
-var subIndexMap map[string](map[string]*geos.Geometry)
 
 // var subIndexMap map[string](map[string]*geos.PGeometry)
 var httpClient *http.Client
@@ -67,11 +65,6 @@ func HTTPClient() *http.Client {
 // when it is necessary to override the default
 func SetImageCatalogPrefix(prefix string) {
 	imageCatalogPrefix = prefix
-}
-
-// ImageCatalogPrefix returns the prefix for this instance
-func ImageCatalogPrefix() string {
-	return imageCatalogPrefix
 }
 
 // ImageDescriptors is the response to a Discover query
@@ -218,7 +211,7 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 		}
 	}
 
-	if subIndex := input.PropertyString("subIndex"); subIndex == "" {
+	if subIndex := input.PropertyString("subindex"); subIndex == "" {
 		indexName = imageCatalogPrefix
 	} else {
 		indexName = subIndex
@@ -270,6 +263,14 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 	return result, string(bytes), nil
 }
 
+// Make a set of caches in case we want to nuke them later
+func registerCache(cacheName string) {
+	red, _ := RedisClient()
+	if intCmd := red.SAdd(imageCatalogPrefix+"-caches", cacheName); intCmd.Err() != nil {
+		RedisError(red, intCmd.Err())
+	}
+}
+
 // populateCache populates a cache corresponding
 // to the search criteria provided
 func populateCache(input *geojson.Feature, cacheName string) {
@@ -280,17 +281,13 @@ func populateCache(input *geojson.Feature, cacheName string) {
 		indexName       string
 		err             error
 		z               redis.Z
-		intCmd          *redis.IntCmd
 		members         *redis.StringSliceCmd
 		count           int
 		acquiredDate    time.Time
 		maxAcquiredDate time.Time
 	)
 
-	// Make a set of caches in case we want to nuke them later
-	if intCmd = red.SAdd(imageCatalogPrefix+"-caches", cacheName); intCmd.Err() != nil {
-		RedisError(red, intCmd.Err())
-	}
+	registerCache(cacheName)
 
 	if acquiredDateStr := input.PropertyString("acquiredDate"); acquiredDateStr != "" {
 		if acquiredDate, err = time.Parse(time.RFC3339, acquiredDateStr); err != nil {
@@ -480,11 +477,11 @@ func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
 	z := redis.Z{Score: calculateScore(feature), Member: key}
 	red.ZAdd(imageCatalogPrefix, z)
 
-	if subIndexMap != nil {
+	if subindexMap != nil {
 		var overlaps bool
-		for name := range subIndexMap {
+		for name := range subindexMap {
 			if geosFeature, err := geojsongeos.GeosFromGeoJSON(feature); err == nil {
-				for _, pg := range subIndexMap[name] {
+				for _, pg := range subindexMap[name].TileMap {
 					if overlaps, err = pg.Overlaps(geosFeature); err != nil {
 						return "", err
 					} else if overlaps {
@@ -597,49 +594,4 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 		return result, nil
 	}
 	return nil, fmt.Errorf("Requested band \"%v\" not found in image %v.", band, feature.ID)
-}
-
-// SetSubIndex sets a filter geometry for an index
-func SetSubIndex(name string, geometries map[string]*geos.Geometry) {
-	// func SetSubIndex(name string, geometries map[string]*geos.PGeometry) {
-	if subIndexMap == nil {
-		subIndexMap = make(map[string]map[string]*geos.Geometry)
-		// subIndexMap = make(map[string]map[string]*geos.PGeometry)
-	}
-	subIndexMap[name] = geometries
-}
-
-// PopulateSubIndex populates a sub-index for later use
-func PopulateSubIndex(name string) int64 {
-	var (
-		intersects bool
-		z          redis.Z
-		intCmd     *redis.IntCmd
-		flag       bool
-	)
-	red, _ := RedisClient()
-	ids, _, _ := getResults(geojson.NewFeature(nil, "", nil), SearchOptions{})
-	for _, feature := range ids.Images.Features {
-		geos, _ := geojsongeos.GeosFromGeoJSON(feature)
-		for _, geos2 := range subIndexMap[name] {
-			if intersects, _ = geos2.Intersects(geos); intersects {
-				z.Score = calculateScore(feature)
-				if math.IsNaN(z.Score) {
-					if !flag {
-						log.Printf("%v", feature.Properties)
-						flag = true
-					}
-				} else {
-					z.Member = imageCatalogPrefix + ":" +
-						feature.ID + "&" +
-						feature.ForceBbox().String() + "," +
-						strconv.FormatFloat(feature.PropertyFloat("cloudCover"), 'f', 6, 64)
-					red.ZAdd(name, z)
-					// log.Printf("added %v with %v", z.Member, z.Score)
-				}
-			}
-		}
-	}
-	intCmd = red.ZCard(name)
-	return intCmd.Val()
 }
