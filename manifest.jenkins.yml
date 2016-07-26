@@ -1,7 +1,7 @@
 applications:
 - name: pzsvc-image-catalog
   host: pzsvc-image-catalog
-  command: chmod 755 ./pzsvc-image-catalog && cp lib/* /usr/lib && ./pzsvc-image-catalog serve
+  command: chmod 755 ./pzsvc-image-catalog && cp ./lib/* /usr/lib && ./pzsvc-image-catalog serve
   buildpack: https://github.com/venicegeo/binary-pzsvc-image-catalog-buildpack
   memory: 1G
   disk_quota: 2G
