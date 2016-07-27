@@ -517,6 +517,12 @@ func DropIndex() {
 			transaction.Del(curr)
 		}
 	}
+	if results := transaction.SMembers(imageCatalogPrefix + "-caches"); results.Err() == nil {
+		log.Printf("Dropping %v caches.", len(results.Val()))
+		for _, curr := range results.Val() {
+			transaction.Del(curr)
+		}
+	}
 	transaction.Del(imageCatalogPrefix)
 }
 

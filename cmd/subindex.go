@@ -58,6 +58,13 @@ func subindexHandler(writer http.ResponseWriter, request *http.Request) {
 			errorText += "Posts to /subindex must contain a WFS URL.\n"
 		}
 
+		if subindex.FeatureType == "" {
+			subindex.FeatureType = request.FormValue("featureType")
+		}
+		if subindex.WfsURL == "" {
+			errorText += "Posts to /subindex must contain a Feature Type.\n"
+		}
+
 		if subindex.Name == "" {
 			subindex.Name = request.FormValue("name")
 		}

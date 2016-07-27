@@ -33,11 +33,11 @@ var subindexMap map[string]Subindex
 
 // Subindex represents a sub-index for the image catalog
 type Subindex struct {
-	WfsURL      string `json:"wfsurl"`
-	FeatureType string `json:"featureType"`
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	TileMap     map[string]*geos.Geometry
+	WfsURL      string                    `json:"wfsurl"`
+	FeatureType string                    `json:"featureType"`
+	Key         string                    `json:"key"`
+	Name        string                    `json:"name"`
+	TileMap     map[string]*geos.Geometry `json:"-"`
 }
 
 // ResolveKey determines the SubIndexID
@@ -45,6 +45,12 @@ type Subindex struct {
 func (si *Subindex) ResolveKey() string {
 	si.Key = imageCatalogPrefix + ":" + si.WfsURL + ":" + si.FeatureType
 	return si.Key
+}
+
+// Register registers the cache in the repository for later access
+func (si *Subindex) Register() {
+	red, _ := RedisClient()
+	red.SAdd(imageCatalogPrefix+"-caches", si.ResolveKey())
 }
 
 // Subindexes returns the map of available subindexes
@@ -76,6 +82,7 @@ func CacheSubindex(subindex Subindex) int64 {
 	)
 	red, _ := RedisClient()
 	ids, _, _ := getResults(geojson.NewFeature(nil, "", nil), SearchOptions{})
+
 	for _, feature := range ids.Images.Features {
 		geos, _ := geojsongeos.GeosFromGeoJSON(feature)
 		for _, geos2 := range subindexMap[subindex.Key].TileMap {
@@ -145,6 +152,7 @@ func CreateSubindex(subindex Subindex) {
 			coords          [5]geos.Coord
 		)
 
+		// Make some tiles to put the geometries into
 		for lonIndex := 0; lonIndex < 360; lonIndex++ {
 			for latIndex := 0; latIndex < 180; latIndex++ {
 				coords[0] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex))
@@ -155,57 +163,59 @@ func CreateSubindex(subindex Subindex) {
 				tiles[lonIndex+(360*latIndex)], _ = geos.NewPolygon(coords[:])
 			}
 		}
-		// for inx := 0; (inx < 100) && (inx < len(fc.Features)); inx++ {
-		// 	feature := fc.Features[inx]
+
+		// Put each feature's geometry in the bucket for the right tile
 		for _, feature := range fc.Features {
+			bbox := feature.ForceBbox()
+			lonIndex := int(math.Floor(bbox[0]) + 180)
+			latIndex := int(math.Floor(bbox[1]) + 90)
+			index := lonIndex + (360 * latIndex)
 			if geometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
 				log.Print(err.Error())
 				return
 			}
-			for index, box := range tiles {
-				var (
-					intersection *geos.Geometry
-					intersects   bool
-				)
-				if intersects, err = box.Contains(geometry); err != nil {
-					log.Printf("Error in Intersects on %v: %v", index, err.Error())
-					return
-				} else if intersects {
-					if intersection, err = box.Intersection(geometry); err != nil {
-						log.Printf("Error performing intersection on %v: %v Trying boundary instead", index, err.Error())
-						if geometry, err = geometry.Boundary(); err != nil {
-							log.Printf("Can't retrieve boundary either: %v. Continuing.", err.Error())
-							continue
-						}
-						if intersection, err = box.Intersection(geometry); err != nil {
-							log.Printf("Still can't perform intersection, even on boundary: %v. Continuing.", err.Error())
-							continue
-						}
-					} else if intersection == nil {
-						log.Printf("Received null intersection on %v", index)
-						continue
-					}
-					tiledGeometries[index] = append(tiledGeometries[index], intersection)
-				}
-			}
+			tiledGeometries[index] = append(tiledGeometries[index], geometry)
 		}
-		log.Printf("Found %v tiled geometries", len(tiledGeometries))
-		tileMap := tileGeometries(tiledGeometries)
-		log.Printf("geometry map has %v tiles", len(tileMap))
-		subindex.TileMap = tileMap
-		// // This will ensure the sub-index is considered in subsequent operations
-		Subindexes()[subindex.Key] = subindex
-		// // This will ensure the sub-index is considered with already-harvested images
-		count := CacheSubindex(subindex)
-		log.Printf("Added %v entries to %v.", count, subindex.Key)
-		// counter := 0
-		// for _, value := range tileMap {
-		// 	counter++
-		// 	log.Printf("How about: %v", value.String())
-		// 	if counter > 5 {
-		// 		break
+		// 	for index, box := range tiles {
+		// 		var (
+		// 			intersection *geos.Geometry
+		// 			intersects   bool
+		// 		)
+		// 		if intersects, err = box.Contains(geometry); err != nil {
+		// 			log.Printf("Error in Intersects on %v: %v", index, err.Error())
+		// 			return
+		// 		} else if intersects {
+		// 			if intersection, err = box.Intersection(geometry); err != nil {
+		// 				log.Printf("Error performing intersection on %v: %v Trying boundary instead", index, err.Error())
+		// 				if geometry, err = geometry.Boundary(); err != nil {
+		// 					log.Printf("Can't retrieve boundary either: %v. Continuing.", err.Error())
+		// 					continue
+		// 				}
+		// 				if intersection, err = box.Intersection(geometry); err != nil {
+		// 					log.Printf("Still can't perform intersection, even on boundary: %v. Continuing.", err.Error())
+		// 					continue
+		// 				}
+		// 			} else if intersection == nil {
+		// 				log.Printf("Received null intersection on %v", index)
+		// 				continue
+		// 			}
+		// 			tiledGeometries[index] = append(tiledGeometries[index], intersection)
+		// 			continue
+		// 		}
 		// 	}
 		// }
+
+		log.Printf("Put %v features into tiles", len(fc.Features))
+		tileMap := tileGeometries(tiledGeometries)
+		log.Printf("Geometry map has %v tiles", len(tileMap))
+		subindex.TileMap = tileMap
+		// This will ensure the sub-index is considered in subsequent operations
+		Subindexes()[subindex.Key] = subindex
+		// Let's keep track of the subindex so we can nuke it later if needed
+		subindex.Register()
+		// This will ensure the sub-index is considered with already-harvested images
+		count := CacheSubindex(subindex)
+		log.Printf("Added %v entries to %v.", count, subindex.Key)
 	}
 }
 
