@@ -205,7 +205,6 @@ func CreateSubindex(subindex Subindex) {
 		// 	}
 		// }
 
-		log.Printf("Put %v features into tiles", len(fc.Features))
 		tileMap := tileGeometries(tiledGeometries)
 		log.Printf("Geometry map has %v tiles", len(tileMap))
 		subindex.TileMap = tileMap
