@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
@@ -79,27 +80,43 @@ func CacheSubindex(subindex Subindex) int64 {
 		z          redis.Z
 		intCmd     *redis.IntCmd
 		flag       bool
+		options    SearchOptions
 	)
 	red, _ := RedisClient()
-	ids, _, _ := getResults(geojson.NewFeature(nil, "", nil), SearchOptions{})
+	date := time.Now()
+	searchFeature := geojson.NewFeature(nil, "", make(map[string]interface{}))
+	for {
+		searchFeature.Properties["maxAcquiredDate"] = date.Format(time.RFC3339)
+		date = date.AddDate(0, -1, 0)
+		searchFeature.Properties["acquiredDate"] = date.Format(time.RFC3339)
 
-	for _, feature := range ids.Images.Features {
-		geos, _ := geojsongeos.GeosFromGeoJSON(feature)
-		for _, geos2 := range subindexMap[subindex.Key].TileMap {
-			if intersects, _ = geos2.Intersects(geos); intersects {
-				z.Score = calculateScore(feature)
-				if math.IsNaN(z.Score) {
-					if !flag {
-						log.Printf("%v", feature.Properties)
-						flag = true
+		log.Printf("Searching for: %v", searchFeature.String())
+
+		ids, _, _ := getResults(searchFeature, options)
+
+		if ids.Count == 0 {
+			log.Printf("Finished searching: %v", date.Format(time.RFC3339))
+			break
+		}
+
+		for _, feature := range ids.Images.Features {
+			geos, _ := geojsongeos.GeosFromGeoJSON(feature)
+			for _, geos2 := range subindexMap[subindex.Key].TileMap {
+				if intersects, _ = geos2.Intersects(geos); intersects {
+					z.Score = calculateScore(feature)
+					if math.IsNaN(z.Score) {
+						if !flag {
+							log.Printf("%v", feature.Properties)
+							flag = true
+						}
+					} else {
+						z.Member = imageCatalogPrefix + ":" +
+							feature.ID + "&" +
+							feature.ForceBbox().String() + "," +
+							strconv.FormatFloat(feature.PropertyFloat("cloudCover"), 'f', 6, 64)
+						red.ZAdd(subindex.Key, z)
+						// log.Printf("added %v with %v", z.Member, z.Score)
 					}
-				} else {
-					z.Member = imageCatalogPrefix + ":" +
-						feature.ID + "&" +
-						feature.ForceBbox().String() + "," +
-						strconv.FormatFloat(feature.PropertyFloat("cloudCover"), 'f', 6, 64)
-					red.ZAdd(subindex.Key, z)
-					// log.Printf("added %v with %v", z.Member, z.Score)
 				}
 			}
 		}
