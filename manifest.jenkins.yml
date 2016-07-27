@@ -12,3 +12,4 @@ applications:
   env:
     LD_LIBRARY_PATH: "/home/vcap/app/lib"
     PZ_AUTH: Basic Y2l0ZXN0ZXI6Y2l0ZXN0ZXI=
+
