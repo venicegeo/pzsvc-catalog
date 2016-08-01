@@ -50,6 +50,7 @@ func serve() {
 			fmt.Fprintf(writer, "Hi")
 		})
 		router.HandleFunc("/eventTypeID", eventTypeIDHandler)
+		router.HandleFunc("/image/{id}", imageHandler)
 		router.HandleFunc("/discover", discoverHandler)
 		router.HandleFunc("/planet", planetHandler)
 		router.HandleFunc("/subindex", subindexHandler)
@@ -72,6 +73,18 @@ func serve() {
 	go recurrentHandling()
 
 	log.Fatal(http.ListenAndServe(portStr, nil))
+}
+
+func imageHandler(writer http.ResponseWriter, request *http.Request) {
+	vars := mux.Vars(request)
+	id := vars["id"]
+	if metadata, err := catalog.GetImageMetadata(id); err == nil {
+		bytes, _ := json.Marshal(metadata)
+		writer.Write(bytes)
+	} else {
+		message := fmt.Sprintf("Unable to retrieve metadata for %v: %v", id, err.Error())
+		http.Error(writer, message, http.StatusBadRequest)
+	}
 }
 
 func provisionHandler(writer http.ResponseWriter, request *http.Request) {
@@ -104,6 +117,7 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 		bboxString      string
 		subIndex        string
 		cloudCover      float64
+		resolution      float64
 		beachfrontScore float64
 	)
 
@@ -158,6 +172,10 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 
 	if bitDepth, err = strconv.ParseInt(request.FormValue("bitDepth"), 0, 32); err == nil {
 		properties["bitDepth"] = int(bitDepth)
+	}
+
+	if resolution, err = strconv.ParseFloat(request.FormValue("resolution"), 32); err == nil {
+		properties["resolution"] = resolution
 	}
 
 	if fileSize, err = strconv.ParseInt(request.FormValue("fileSize"), 0, 64); err == nil {

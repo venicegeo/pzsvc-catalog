@@ -178,6 +178,7 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) e
 		properties["resolution"] = curr.Properties["image_statistics"].(map[string]interface{})["gsd"].(float64)
 		adString := curr.Properties["acquired"].(string)
 		properties["acquiredDate"] = adString
+		properties["fileFormat"] = "geotiff"
 		properties["sensorName"] = "Landsat8"
 		bands := make(map[string]string)
 		bands["coastal"] = url + id + "_B1.TIF"

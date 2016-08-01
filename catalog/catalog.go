@@ -17,6 +17,7 @@ package catalog
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -439,7 +440,21 @@ func GetImageMetadata(id string) (*geojson.Feature, error) {
 	var stringCmd *redis.StringCmd
 	key := imageCatalogPrefix + ":" + id
 	if stringCmd = red.Get(key); stringCmd.Err() != nil {
-		return nil, stringCmd.Err()
+		// If it isn't there, try a wildcard search
+		// because they key might be missing the adjunct
+		key = key + "*"
+		var ssc *redis.StringSliceCmd
+		if ssc = red.Keys(key); ssc.Err() != nil {
+			return nil, stringCmd.Err()
+		}
+		if len(ssc.Val()) > 0 {
+			// We have to strip out the prefix. Annoying!
+			parts := strings.SplitN(ssc.Val()[0], ":", 2)
+			if len(parts) > 0 {
+				return GetImageMetadata(parts[1])
+			}
+		}
+		return nil, errors.New("redis: nil even using wildcard search")
 	}
 	metadataString := stringCmd.Val()
 	return geojson.FeatureFromBytes([]byte(metadataString))
