@@ -212,9 +212,9 @@ var didOnce bool
 
 // Event is a replacement for pzworkflow.Event since that struct is broken at the moment.
 type Event struct {
-	EventTypeID string                 `json:"eventtype_id" binding:"required"`
+	EventTypeID string                 `json:"eventTypeId" binding:"required"`
 	Date        time.Time              `json:"date" binding:"required"`
-	Data        map[string]interface{} `json:"mapping"`
+	Data        map[string]interface{} `json:"data"`
 }
 
 func issueEvent(options HarvestOptions, imageID string) error {
