@@ -249,7 +249,12 @@ func issueEvent(options HarvestOptions, imageID string) error {
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		log.Print(requestURL)
 		log.Printf("%v", string(eventBytes))
-		return &HTTPError{Status: response.StatusCode, Message: "Failed to add harvest event: " + response.Status}
+		var responseBytes []byte
+		defer response.Body.Close()
+		if responseBytes, err = ioutil.ReadAll(response.Body); err != nil {
+			return err
+		}
+		return &HTTPError{Status: response.StatusCode, Message: "Failed to add harvest event:\n" + string(responseBytes)}
 	}
 	if !didOnce {
 		defer response.Body.Close()
