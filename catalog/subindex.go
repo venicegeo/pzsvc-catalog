@@ -81,13 +81,14 @@ func CacheSubindex(subindex Subindex) int64 {
 		intCmd     *redis.IntCmd
 		flag       bool
 		options    SearchOptions
+		count      int
 	)
 	red, _ := RedisClient()
 	date := time.Now()
 	searchFeature := geojson.NewFeature(nil, "", make(map[string]interface{}))
 	for {
 		searchFeature.Properties["maxAcquiredDate"] = date.Format(time.RFC3339)
-		date = date.AddDate(0, -1, 0)
+		date = date.AddDate(0, 0, -7)
 		searchFeature.Properties["acquiredDate"] = date.Format(time.RFC3339)
 
 		log.Printf("Searching for: %v", searchFeature.String())
@@ -99,6 +100,12 @@ func CacheSubindex(subindex Subindex) int64 {
 			break
 		}
 
+		log.Printf("Found %v features to inspect.", ids.Count)
+
+		transaction, _ := red.Watch(imageCatalogPrefix)
+		defer transaction.Close()
+
+		count = 0
 		for _, feature := range ids.Images.Features {
 			geos, _ := geojsongeos.GeosFromGeoJSON(feature)
 			for _, geos2 := range subindexMap[subindex.Key].TileMap {
@@ -114,12 +121,17 @@ func CacheSubindex(subindex Subindex) int64 {
 							feature.ID + "&" +
 							feature.ForceBbox().String() + "," +
 							strconv.FormatFloat(feature.PropertyFloat("cloudCover"), 'f', 6, 64)
-						red.ZAdd(subindex.Key, z)
-						// log.Printf("added %v with %v", z.Member, z.Score)
+						transaction.ZAdd(subindex.Key, z)
+						count++
+						break
 					}
 				}
 			}
 		}
+		log.Printf("Adding %v values to %v.", count, subindex.Key)
+		transaction.Exec(func() error {
+			return nil
+		})
 	}
 	intCmd = red.ZCard(subindex.Key)
 	return intCmd.Val()
@@ -193,34 +205,6 @@ func CreateSubindex(subindex Subindex) {
 			}
 			tiledGeometries[index] = append(tiledGeometries[index], geometry)
 		}
-		// 	for index, box := range tiles {
-		// 		var (
-		// 			intersection *geos.Geometry
-		// 			intersects   bool
-		// 		)
-		// 		if intersects, err = box.Contains(geometry); err != nil {
-		// 			log.Printf("Error in Intersects on %v: %v", index, err.Error())
-		// 			return
-		// 		} else if intersects {
-		// 			if intersection, err = box.Intersection(geometry); err != nil {
-		// 				log.Printf("Error performing intersection on %v: %v Trying boundary instead", index, err.Error())
-		// 				if geometry, err = geometry.Boundary(); err != nil {
-		// 					log.Printf("Can't retrieve boundary either: %v. Continuing.", err.Error())
-		// 					continue
-		// 				}
-		// 				if intersection, err = box.Intersection(geometry); err != nil {
-		// 					log.Printf("Still can't perform intersection, even on boundary: %v. Continuing.", err.Error())
-		// 					continue
-		// 				}
-		// 			} else if intersection == nil {
-		// 				log.Printf("Received null intersection on %v", index)
-		// 				continue
-		// 			}
-		// 			tiledGeometries[index] = append(tiledGeometries[index], intersection)
-		// 			continue
-		// 		}
-		// 	}
-		// }
 
 		tileMap := tileGeometries(tiledGeometries)
 		log.Printf("Geometry map has %v tiles", len(tileMap))
