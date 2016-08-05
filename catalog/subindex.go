@@ -82,6 +82,8 @@ func CacheSubindex(subindex Subindex) int64 {
 		flag       bool
 		options    SearchOptions
 		count      int
+		ids        ImageDescriptors
+		err        error
 	)
 	red, _ := RedisClient()
 	date := time.Now()
@@ -93,7 +95,10 @@ func CacheSubindex(subindex Subindex) int64 {
 
 		log.Printf("Searching for: %v", searchFeature.String())
 
-		ids, _, _ := getResults(searchFeature, options)
+		if ids, _, err = getResults(searchFeature, options); err != nil {
+			log.Printf("Failed to complete subindex %v due to %v.", subindex.Name, err.Error())
+			break
+		}
 
 		if ids.Count == 0 {
 			log.Printf("Finished searching: %v", date.Format(time.RFC3339))
@@ -102,7 +107,7 @@ func CacheSubindex(subindex Subindex) int64 {
 
 		log.Printf("Found %v features to inspect.", ids.Count)
 
-		transaction, _ := red.Watch(imageCatalogPrefix)
+		transaction := red.Multi()
 		defer transaction.Close()
 
 		count = 0
@@ -130,7 +135,15 @@ func CacheSubindex(subindex Subindex) int64 {
 		}
 		log.Printf("Adding %v values to %v.", count, subindex.Key)
 		transaction.Exec(func() error {
-			return nil
+			return transaction.Close()
+			// log.Print("Completed transaction.")
+			// if infoCmd := red.Info(); err != nil {
+			// 	log.Printf("Error: %v", infoCmd.Err())
+			// } else {
+			// 	log.Print(infoCmd.Val())
+			// 	log.Print("Anyone home?")
+			// }
+			// return nil
 		})
 	}
 	intCmd = red.ZCard(subindex.Key)

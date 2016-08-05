@@ -197,8 +197,12 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 		acquiredDate    time.Time
 		maxAcquiredDate time.Time
 		err             error
+		red             *redis.Client
 	)
-	red, _ := RedisClient()
+	if red, err = RedisClient(); err != nil {
+		RedisError(red, err)
+		return result, "", err
+	}
 
 	if acquiredDateStr := input.PropertyString("acquiredDate"); acquiredDateStr != "" {
 		if acquiredDate, err = time.Parse(time.RFC3339, acquiredDateStr); err != nil {
@@ -231,6 +235,7 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 		}
 		opt.Max = strconv.FormatInt(-acquiredDate.Unix(), 10)
 		opt.Min = strconv.FormatInt(-maxAcquiredDate.Unix(), 10)
+		log.Printf("Starting search on %v: %v", indexName, opt)
 		if members = red.ZRangeByScore(indexName, opt); members.Err() != nil {
 			RedisError(red, members.Err())
 		}
@@ -524,7 +529,7 @@ func calculateScore(feature *geojson.Feature) float64 {
 // and deletes the underlying entries
 func DropIndex() {
 	red, _ := RedisClient()
-	transaction, _ := red.Watch(imageCatalogPrefix)
+	transaction := red.Multi()
 	defer transaction.Close()
 	if results := transaction.ZRange(imageCatalogPrefix, 0, -1); results.Err() == nil {
 		log.Printf("Dropping %v keys.", len(results.Val()))
