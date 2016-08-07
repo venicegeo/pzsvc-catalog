@@ -136,14 +136,6 @@ func CacheSubindex(subindex Subindex) int64 {
 		log.Printf("Adding %v values to %v.", count, subindex.Key)
 		transaction.Exec(func() error {
 			return transaction.Close()
-			// log.Print("Completed transaction.")
-			// if infoCmd := red.Info(); err != nil {
-			// 	log.Printf("Error: %v", infoCmd.Err())
-			// } else {
-			// 	log.Print(infoCmd.Val())
-			// 	log.Print("Anyone home?")
-			// }
-			// return nil
 		})
 	}
 	intCmd = red.ZCard(subindex.Key)

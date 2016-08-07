@@ -24,7 +24,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
+	pzworkflow "github.com/venicegeo/pz-workflow/workflow"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
+	"github.com/venicegeo/pzsvc-lib"
 )
 
 func planetHandler(writer http.ResponseWriter, request *http.Request) {
@@ -32,6 +34,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 		drop, recurring, reharvest, event, cap bool
 		optionsBytes                           []byte
 		err                                    error
+		eventType                              *pzworkflow.EventType
 	)
 	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
 	event, _ = strconv.ParseBool(request.FormValue("event"))
@@ -49,7 +52,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 
 	// Let's test the credentials before we do anything
 	if err = testPiazzaAuth(pzAuth); err != nil {
-		if httpError, ok := err.(*HTTPError); ok {
+		if httpError, ok := err.(*pzsvc.HTTPError); ok {
 			http.Error(writer, httpError.Message, httpError.Status)
 		} else {
 			http.Error(writer, "Unable to attempt authentication: "+err.Error(), http.StatusInternalServerError)
@@ -58,12 +61,12 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	if event {
-		var heID string
-		if heID, err = getHarvestEventTypeID(pzAuth); err != nil {
-			http.Error(writer, "Failed to retrieve harvest event ID: "+err.Error(), http.StatusBadRequest)
+		if eventType, err = pzsvc.EventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzAuth); err == nil {
+			options.EventID = eventType.EventTypeId
+		} else {
+			http.Error(writer, "Failed to retrieve harvest event type ID: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		options.EventID = heID
 	}
 	optionsBytes, _ = json.Marshal(options)
 	// How do we turn off recurrence as opposed to just ignoring?

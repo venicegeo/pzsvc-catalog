@@ -28,6 +28,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
+	"github.com/venicegeo/pzsvc-lib"
 
 	"gopkg.in/redis.v3"
 )
@@ -262,7 +263,7 @@ func testPiazzaAuth(auth string) error {
 
 	// Check for HTTP errors
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return &HTTPError{Status: response.StatusCode, Message: "Failed to authenticate: " + response.Status}
+		return &pzsvc.HTTPError{Status: response.StatusCode, Message: "Failed to authenticate: " + response.Status}
 	}
 
 	return nil
