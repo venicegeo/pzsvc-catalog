@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/venicegeo/geojson-go/geojson"
+	"github.com/venicegeo/pzsvc-lib"
 )
 
 const baseURLString = "https://api.planet.com/"
@@ -52,7 +53,7 @@ func DoPlanetRequest(method, inputURL, key string) (*http.Response, error) {
 	}
 
 	request.Header.Set("Authorization", "Basic "+getPlanetAuth(key))
-	return HTTPClient().Do(request)
+	return pzsvc.HTTPClient().Do(request)
 }
 
 // UnmarshalPlanetResponse parses the response and returns a Planet Labs response object
@@ -72,7 +73,7 @@ func UnmarshalPlanetResponse(response *http.Response) (PlanetResponse, *geojson.
 	// Check for HTTP errors
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		message := fmt.Sprintf("%v returned %v", response.Request.URL.String(), string(body))
-		return unmarshal, fc, &HTTPError{Message: message, Status: response.StatusCode}
+		return unmarshal, fc, &pzsvc.HTTPError{Message: message, Status: response.StatusCode}
 	}
 
 	if err = json.Unmarshal(body, &unmarshal); err != nil {

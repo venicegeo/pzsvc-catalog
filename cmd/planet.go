@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
@@ -24,17 +23,19 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
-	pzworkflow "github.com/venicegeo/pz-workflow/workflow"
+	"github.com/venicegeo/pz-gocommon/elasticsearch"
+	"github.com/venicegeo/pz-workflow/workflow"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
+const planetRecurringRoot = "beachfront:harvest:planet-recurrence"
+
 func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	var (
 		drop, recurring, reharvest, event, cap bool
-		optionsBytes                           []byte
 		err                                    error
-		eventType                              *pzworkflow.EventType
+		eventType                              *workflow.EventType
 	)
 	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
 	event, _ = strconv.ParseBool(request.FormValue("event"))
@@ -68,9 +69,6 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 			return
 		}
 	}
-	optionsBytes, _ = json.Marshal(options)
-	// How do we turn off recurrence as opposed to just ignoring?
-	catalog.SetRecurrence("pl", recurring, string(optionsBytes))
 
 	if drop, _ = strconv.ParseBool(request.FormValue("dropIndex")); drop {
 		writer.Write([]byte("Dropping existing index.\n"))
@@ -247,6 +245,29 @@ func harvestPlanet(options HarvestOptions) {
 	options.callback = storePlanetLandsat
 	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", options)
 	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
+	if options.Recurring {
+		var (
+			events    []workflow.Event
+			err       error
+			eventType *workflow.EventType
+		)
+		// Get the event type
+		mapping := make(map[string]elasticsearch.MappingElementTypeName)
+		if eventType, err = pzsvc.EventType(planetRecurringRoot, mapping, options.PiazzaAuthorization); err != nil {
+			log.Printf("Failed to retrieve event type %v: %v", planetRecurringRoot, err.Error())
+			return
+		}
+
+		// Is there an event?
+		if events, err = pzsvc.Events(eventType.EventTypeId, options.PiazzaAuthorization); err != nil {
+			log.Printf("Failed to retrieve event type %v: %v", planetRecurringRoot, err.Error())
+			return
+		}
+		for _, event := range events {
+			if event.CronSchedule == "" {
+			}
+		}
+	}
 }
 
 func init() {

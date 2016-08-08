@@ -71,8 +71,8 @@ func serve() {
 		})
 	}
 
-	go recurrentHandling()
-
+	// go recurrentHandling()
+	//
 	log.Fatal(http.ListenAndServe(portStr, nil))
 }
 
@@ -257,7 +257,7 @@ func testPiazzaAuth(auth string) error {
 		return err
 	}
 	request.Header.Set("Authorization", auth)
-	if response, err = catalog.HTTPClient().Do(request); err != nil {
+	if response, err = pzsvc.HTTPClient().Do(request); err != nil {
 		return err
 	}
 

@@ -15,7 +15,6 @@
 package catalog
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,15 +30,13 @@ import (
 
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
+	"github.com/venicegeo/pzsvc-lib"
 )
 
 const maxCacheSize = 1000
 const maxCacheTimeout = "1h"
 
 var imageCatalogPrefix string
-
-// var subIndexMap map[string](map[string]*geos.PGeometry)
-var httpClient *http.Client
 
 // SearchOptions is the options for a search request
 type SearchOptions struct {
@@ -48,18 +45,6 @@ type SearchOptions struct {
 	MaximumIndex int
 	Count        int
 	SubIndex     string
-}
-
-// HTTPClient is a factory method for a http.Client suitable for common operations
-func HTTPClient() *http.Client {
-	if httpClient == nil {
-		transport := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-
-		httpClient = &http.Client{Transport: transport}
-	}
-	return httpClient
 }
 
 // SetImageCatalogPrefix sets the prefix for this instance
@@ -465,16 +450,6 @@ func GetImageMetadata(id string) (*geojson.Feature, error) {
 	return geojson.FeatureFromBytes([]byte(metadataString))
 }
 
-// HTTPError represents any HTTP error
-type HTTPError struct {
-	Status  int
-	Message string
-}
-
-func (err HTTPError) Error() string {
-	return fmt.Sprintf("%d: %v", err.Status, err.Message)
-}
-
 // StoreFeature stores a feature into the catalog
 // using a key based on the feature's ID
 func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
@@ -558,30 +533,30 @@ func ImageIOReader(id, band, key string) (io.Reader, error) {
 	return ImageFeatureIOReader(feature, band, key)
 }
 
-// SetRecurrence sets a key so that a daemon can determine
-// whether to rerun a harvesting operation
-// A blank value means "off"
-func SetRecurrence(domain string, flag bool, value string) {
-	red, _ := RedisClient()
-	key := imageCatalogPrefix + ":" + domain + ":recur"
-	if flag {
-		red.Set(key, value, 0)
-	} else {
-		red.Del(key)
-	}
-}
-
-// Recurrence returns the recurrence flag for the specified domain
-// A blank response indicates unset
-func Recurrence(domain string) string {
-	red, _ := RedisClient()
-	key := imageCatalogPrefix + ":" + domain + ":recur"
-	if bc := red.Exists(key); bc.Err() == nil && bc.Val() {
-		sc := red.Get(key)
-		return sc.Val()
-	}
-	return ""
-}
+// // SetRecurrence sets a key so that a daemon can determine
+// // whether to rerun a harvesting operation
+// // A blank value means "off"
+// func SetRecurrence(domain string, flag bool, value string) {
+// 	red, _ := RedisClient()
+// 	key := imageCatalogPrefix + ":" + domain + ":recur"
+// 	if flag {
+// 		red.Set(key, value, 0)
+// 	} else {
+// 		red.Del(key)
+// 	}
+// }
+//
+// // Recurrence returns the recurrence flag for the specified domain
+// // A blank response indicates unset
+// func Recurrence(domain string) string {
+// 	red, _ := RedisClient()
+// 	key := imageCatalogPrefix + ":" + domain + ":recur"
+// 	if bc := red.Exists(key); bc.Err() == nil && bc.Val() {
+// 		sc := red.Get(key)
+// 		return sc.Val()
+// 	}
+// 	return ""
+// }
 
 // ImageFeatureIOReader returns an io Reader for the requested band
 func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io.Reader, error) {
@@ -608,7 +583,7 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 					if request, err = http.NewRequest("GET", urlString, nil); err != nil {
 						return nil, err
 					}
-					if response, err = HTTPClient().Do(request); err != nil {
+					if response, err = pzsvc.HTTPClient().Do(request); err != nil {
 						return nil, err
 					}
 				}

@@ -27,6 +27,7 @@ import (
 	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
+	"github.com/venicegeo/pzsvc-lib"
 	"gopkg.in/redis.v3"
 )
 
@@ -166,7 +167,7 @@ func CreateSubindex(subindex Subindex) {
 
 	log.Printf("Creating subindex based on WFS: %v", qurl)
 	request, _ = http.NewRequest("GET", qurl, nil)
-	response, _ = HTTPClient().Do(request)
+	response, _ = pzsvc.HTTPClient().Do(request)
 
 	// Check for HTTP errors
 	if response.StatusCode < 200 || response.StatusCode > 299 {
