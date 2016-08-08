@@ -15,10 +15,7 @@
 package cmd
 
 import (
-	"bytes"
 	"encoding/json"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 
@@ -38,16 +35,6 @@ var (
 
 	harvestEventTypeID string
 )
-
-// func recurrentHandling() {
-// 	for {
-// 		if planetKey := catalog.Recurrence("pl"); planetKey != "" {
-// 			options := HarvestOptions{PlanetKey: planetKey}
-// 			harvestPlanet(options)
-// 		}
-// 		time.Sleep(24 * time.Hour)
-// 	}
-// }
 
 // HarvestOptions are options for a harvesting operation
 type HarvestOptions struct {
@@ -84,8 +71,6 @@ var didOnce bool
 
 func issueEvent(options HarvestOptions, imageID string) error {
 	var (
-		request    *http.Request
-		response   *http.Response
 		err        error
 		eventBytes []byte
 	)
@@ -98,39 +83,8 @@ func issueEvent(options HarvestOptions, imageID string) error {
 		return err
 	}
 
-	requestURL := "https://pz-gateway." + domain + "/event"
-	if request, err = http.NewRequest("POST", requestURL, bytes.NewBuffer(eventBytes)); err != nil {
-		return err
-	}
-	request.Header.Set("Authorization", options.PiazzaAuthorization)
-	request.Header.Set("Content-Type", "application/json")
-
-	if response, err = pzsvc.HTTPClient().Do(request); err != nil {
-		return err
-	}
-
-	// Check for HTTP errors
-	if response.StatusCode < 200 || response.StatusCode > 299 {
-		log.Print(requestURL)
-		log.Printf("%v", string(eventBytes))
-		var responseBytes []byte
-		defer response.Body.Close()
-		if responseBytes, err = ioutil.ReadAll(response.Body); err != nil {
-			return err
-		}
-		return &pzsvc.HTTPError{Status: response.StatusCode, Message: "Failed to add harvest event:\n" + string(responseBytes)}
-	}
-	if !didOnce {
-		defer response.Body.Close()
-		if eventBytes, err = ioutil.ReadAll(response.Body); err != nil {
-			return err
-		}
-		log.Print(string(eventBytes))
-		didOnce = true
-	}
-
+	_, err = pzsvc.PostGateway("/event", eventBytes, options.PiazzaAuthorization)
 	return err
-
 }
 func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 	var (

@@ -274,7 +274,9 @@ func harvestPlanet(options HarvestOptions) {
 			}
 		}
 		if !foundEvent {
-			event = workflow.Event{CronSchedule: harvestCron, EventTypeId: eventType.EventTypeId}
+			event = workflow.Event{CronSchedule: harvestCron,
+				EventTypeId: eventType.EventTypeId,
+				Data:        make(map[string]interface{})}
 			if _, err = pzsvc.AddEvent(event, options.PiazzaAuthorization); err != nil {
 				log.Printf("Failed to add event for event type %v: %v", eventType.EventTypeId, err.Error())
 				return

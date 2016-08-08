@@ -247,24 +247,8 @@ Serve the image catalog`,
 }
 
 func testPiazzaAuth(auth string) error {
-	var (
-		request  *http.Request
-		response *http.Response
-		err      error
-	)
-	inputURL := "https://pz-gateway." + domain + "/eventType"
-	if request, err = http.NewRequest("GET", inputURL, nil); err != nil {
-		return err
-	}
-	request.Header.Set("Authorization", auth)
-	if response, err = pzsvc.HTTPClient().Do(request); err != nil {
-		return err
-	}
 
-	// Check for HTTP errors
-	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return &pzsvc.HTTPError{Status: response.StatusCode, Message: "Failed to authenticate: " + response.Status}
-	}
+	err := pzsvc.GetGateway("/eventType", auth, nil)
 
-	return nil
+	return err
 }
