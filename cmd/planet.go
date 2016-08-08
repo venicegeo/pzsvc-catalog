@@ -240,6 +240,8 @@ This function will harvest metadata from Planet Labs, using the PL_API_KEY in th
 	},
 }
 
+const harvestCron = "@every 24h"
+
 func harvestPlanet(options HarvestOptions) {
 	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
 	options.callback = storePlanetLandsat
@@ -250,6 +252,7 @@ func harvestPlanet(options HarvestOptions) {
 			events    []workflow.Event
 			err       error
 			eventType *workflow.EventType
+			event     workflow.Event
 		)
 		// Get the event type
 		mapping := make(map[string]elasticsearch.MappingElementTypeName)
@@ -260,13 +263,25 @@ func harvestPlanet(options HarvestOptions) {
 
 		// Is there an event?
 		if events, err = pzsvc.Events(eventType.EventTypeId, options.PiazzaAuthorization); err != nil {
-			log.Printf("Failed to retrieve event type %v: %v", planetRecurringRoot, err.Error())
+			log.Printf("Failed to retrieve events for event type %v: %v", eventType.EventTypeId, err.Error())
 			return
 		}
+		var foundEvent bool
 		for _, event := range events {
-			if event.CronSchedule == "" {
+			if event.CronSchedule == harvestCron {
+				foundEvent = true
+				break
 			}
 		}
+		if !foundEvent {
+			event = workflow.Event{CronSchedule: harvestCron, EventTypeId: eventType.EventTypeId}
+			if _, err = pzsvc.AddEvent(event, options.PiazzaAuthorization); err != nil {
+				log.Printf("Failed to add event for event type %v: %v", eventType.EventTypeId, err.Error())
+				return
+			}
+		}
+
+		// Is there a trigger?
 	}
 }
 
