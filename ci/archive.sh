@@ -1,5 +1,7 @@
 #! /bin/bash -ex
 
+sudo apt-get install -y libgeos-dev
+
 pushd `dirname $0`/.. > /dev/null
 root=$(pwd -P)
 popd > /dev/null
