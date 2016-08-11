@@ -1,7 +1,5 @@
 #! /bin/bash -ex
 
-yum install -y libgeos-dev
-
 pushd `dirname $0`/.. > /dev/null
 root=$(pwd -P)
 popd > /dev/null
