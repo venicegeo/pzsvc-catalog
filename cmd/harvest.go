@@ -20,9 +20,6 @@ import (
 	"os"
 
 	"github.com/venicegeo/geojson-go/geojson"
-	"github.com/venicegeo/pz-gocommon/elasticsearch"
-	"github.com/venicegeo/pz-gocommon/gocommon"
-	"github.com/venicegeo/pz-workflow/workflow"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -44,25 +41,25 @@ type HarvestOptions struct {
 	PlanetKey           string `json:"PL_API_KEY"`
 	PiazzaAuthorization string `json:"pz-auth"`
 	callback            harvestCallback
-	EventID             piazza.Ident
+	EventID             string
 	Cap                 bool `json:"cap"`
 }
 
-var harvestETMapping map[string]elasticsearch.MappingElementTypeName
+var harvestETMapping map[string]string
 
-func harvestEventTypeMapping() map[string]elasticsearch.MappingElementTypeName {
+func harvestEventTypeMapping() map[string]string {
 	if harvestETMapping == nil {
-		harvestETMapping = make(map[string]elasticsearch.MappingElementTypeName)
-		harvestETMapping["imageID"] = elasticsearch.MappingElementTypeString
-		harvestETMapping["acquiredDate"] = elasticsearch.MappingElementTypeString
-		harvestETMapping["cloudCover"] = elasticsearch.MappingElementTypeLong
-		harvestETMapping["resolution"] = elasticsearch.MappingElementTypeLong
-		harvestETMapping["sensorName"] = elasticsearch.MappingElementTypeString
-		harvestETMapping["minx"] = elasticsearch.MappingElementTypeLong
-		harvestETMapping["miny"] = elasticsearch.MappingElementTypeLong
-		harvestETMapping["maxx"] = elasticsearch.MappingElementTypeLong
-		harvestETMapping["maxy"] = elasticsearch.MappingElementTypeLong
-		harvestETMapping["link"] = elasticsearch.MappingElementTypeString
+		harvestETMapping = make(map[string]string)
+		harvestETMapping["imageID"] = pzsvc.MappingElementTypeString
+		harvestETMapping["acquiredDate"] = pzsvc.MappingElementTypeString
+		harvestETMapping["cloudCover"] = pzsvc.MappingElementTypeLong
+		harvestETMapping["resolution"] = pzsvc.MappingElementTypeLong
+		harvestETMapping["sensorName"] = pzsvc.MappingElementTypeString
+		harvestETMapping["minx"] = pzsvc.MappingElementTypeLong
+		harvestETMapping["miny"] = pzsvc.MappingElementTypeLong
+		harvestETMapping["maxx"] = pzsvc.MappingElementTypeLong
+		harvestETMapping["maxy"] = pzsvc.MappingElementTypeLong
+		harvestETMapping["link"] = pzsvc.MappingElementTypeString
 	}
 	return harvestETMapping
 }
@@ -74,8 +71,8 @@ func issueEvent(options HarvestOptions, imageID string) error {
 		err        error
 		eventBytes []byte
 	)
-	event := workflow.Event{
-		EventTypeId: options.EventID,
+	event := pzsvc.Event{
+		EventTypeID: options.EventID,
 		Data:        make(map[string]interface{})}
 	event.Data["ImageID"] = imageID
 
@@ -83,13 +80,13 @@ func issueEvent(options HarvestOptions, imageID string) error {
 		return err
 	}
 
-	_, err = pzsvc.PostGateway("/event", eventBytes, options.PiazzaAuthorization)
+	_, err = pzsvc.SubmitSinglePart("POST", string(eventBytes), pzsvc.Gateway()+"/event", options.PiazzaAuthorization)
 	return err
 }
 func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 	var (
 		err       error
-		eventType *workflow.EventType
+		eventType pzsvc.EventType
 	)
 	pzAuth := request.Header.Get("Authorization")
 	if err = testPiazzaAuth(pzAuth); err != nil {
@@ -101,8 +98,8 @@ func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	if eventType, err = pzsvc.EventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzAuth); err == nil {
-		writer.Write([]byte(eventType.EventTypeId))
+	if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzAuth); err == nil {
+		writer.Write([]byte(eventType.EventTypeID))
 	} else {
 		http.Error(writer, "Failed to retrieve Event Type ID: "+err.Error(), http.StatusInternalServerError)
 	}

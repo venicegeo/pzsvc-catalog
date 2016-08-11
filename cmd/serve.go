@@ -248,7 +248,6 @@ Serve the image catalog`,
 
 func testPiazzaAuth(auth string) error {
 
-	err := pzsvc.GetGateway("/eventType", auth, nil)
-
+	_, err := pzsvc.SubmitSinglePart("GET", "", pzsvc.Gateway()+"/eventType", auth)
 	return err
 }

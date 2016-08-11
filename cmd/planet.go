@@ -23,8 +23,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
-	"github.com/venicegeo/pz-gocommon/elasticsearch"
-	"github.com/venicegeo/pz-workflow/workflow"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 	"github.com/venicegeo/pzsvc-lib"
 )
@@ -35,7 +33,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	var (
 		drop, recurring, reharvest, event, cap bool
 		err                                    error
-		eventType                              *workflow.EventType
+		eventType                              pzsvc.EventType
 	)
 	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
 	event, _ = strconv.ParseBool(request.FormValue("event"))
@@ -62,8 +60,8 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	if event {
-		if eventType, err = pzsvc.EventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzAuth); err == nil {
-			options.EventID = eventType.EventTypeId
+		if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzAuth); err == nil {
+			options.EventID = eventType.EventTypeID
 		} else {
 			http.Error(writer, "Failed to retrieve harvest event type ID: "+err.Error(), http.StatusBadRequest)
 			return
@@ -249,21 +247,21 @@ func harvestPlanet(options HarvestOptions) {
 	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
 	if options.Recurring {
 		var (
-			events    []workflow.Event
+			events    []pzsvc.Event
 			err       error
-			eventType *workflow.EventType
-			event     workflow.Event
+			eventType pzsvc.EventType
+			event     pzsvc.Event
 		)
 		// Get the event type
-		mapping := make(map[string]elasticsearch.MappingElementTypeName)
-		if eventType, err = pzsvc.EventType(planetRecurringRoot, mapping, options.PiazzaAuthorization); err != nil {
+		mapping := make(map[string]string)
+		if eventType, err = pzsvc.GetEventType(planetRecurringRoot, mapping, options.PiazzaAuthorization); err != nil {
 			log.Printf("Failed to retrieve event type %v: %v", planetRecurringRoot, err.Error())
 			return
 		}
 
 		// Is there an event?
-		if events, err = pzsvc.Events(eventType.EventTypeId, options.PiazzaAuthorization); err != nil {
-			log.Printf("Failed to retrieve events for event type %v: %v", eventType.EventTypeId, err.Error())
+		if events, err = pzsvc.Events(eventType.EventTypeID, options.PiazzaAuthorization); err != nil {
+			log.Printf("Failed to retrieve events for event type %v: %v", eventType.EventTypeID, err.Error())
 			return
 		}
 		var foundEvent bool
@@ -274,11 +272,11 @@ func harvestPlanet(options HarvestOptions) {
 			}
 		}
 		if !foundEvent {
-			event = workflow.Event{CronSchedule: harvestCron,
-				EventTypeId: eventType.EventTypeId,
+			event = pzsvc.Event{CronSchedule: harvestCron,
+				EventTypeID: eventType.EventTypeID,
 				Data:        make(map[string]interface{})}
 			if _, err = pzsvc.AddEvent(event, options.PiazzaAuthorization); err != nil {
-				log.Printf("Failed to add event for event type %v: %v", eventType.EventTypeId, err.Error())
+				log.Printf("Failed to add event for event type %v: %v", eventType.EventTypeID, err.Error())
 				return
 			}
 		}
