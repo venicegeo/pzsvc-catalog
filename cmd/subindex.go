@@ -73,8 +73,11 @@ func subindexHandler(writer http.ResponseWriter, request *http.Request) {
 		}
 
 		subindex.ResolveKey()
-		go catalog.CreateSubindex(subindex)
-		bytes, _ = json.Marshal(subindex)
+		if err := catalog.CreateSubindex(subindex); err == nil {
+			bytes, _ = json.Marshal(subindex)
+		} else {
+			errorText += err.Error() + "\n"
+		}
 	case "GET":
 		subindexes := catalog.Subindexes()
 		if bytes, err = json.Marshal(subindexes); err != nil {

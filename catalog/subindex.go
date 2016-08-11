@@ -15,6 +15,7 @@
 package catalog
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -144,7 +145,7 @@ func CacheSubindex(subindex Subindex) int64 {
 }
 
 // CreateSubindex performs the actual subindex calculations
-func CreateSubindex(subindex Subindex) {
+func CreateSubindex(subindex Subindex) error {
 	var (
 		request  *http.Request
 		response *http.Response
@@ -152,8 +153,6 @@ func CreateSubindex(subindex Subindex) {
 		gjIfc    interface{}
 		fc       *geojson.FeatureCollection
 		ok       bool
-		geometry *geos.Geometry
-		err      error
 	)
 
 	v := url.Values{}
@@ -165,64 +164,73 @@ func CreateSubindex(subindex Subindex) {
 
 	qurl := subindex.WfsURL + "?" + v.Encode()
 
-	log.Printf("Creating subindex based on WFS: %v", qurl)
 	request, _ = http.NewRequest("GET", qurl, nil)
 	response, _ = pzsvc.HTTPClient().Do(request)
-
-	// Check for HTTP errors
-	if response.StatusCode < 200 || response.StatusCode > 299 {
-		log.Printf("Received %v: \"%v\" when performing a GetFeature request on %v\n%#v", response.StatusCode, response.Status, subindex.WfsURL, request)
-		return
-	}
 
 	defer response.Body.Close()
 	bytes, _ = ioutil.ReadAll(response.Body)
 
+	// Check for HTTP errors
+	if response.StatusCode < 200 || response.StatusCode > 299 {
+		message := fmt.Sprintf("Received %v: \"%v\" when performing a GetFeature request on %v\n%v", response.StatusCode, response.Status, qurl, string(bytes))
+		return &pzsvc.HTTPError{Status: response.StatusCode, Message: message}
+	}
+
 	gjIfc, _ = geojson.Parse(bytes)
 	if fc, ok = gjIfc.(*geojson.FeatureCollection); ok {
 		log.Printf("%v returned %v responses.", qurl, len(fc.Features))
-		var (
-			tiles           [180 * 360]*geos.Geometry
-			tiledGeometries [180 * 360][]*geos.Geometry
-			coords          [5]geos.Coord
-		)
-
-		// Make some tiles to put the geometries into
-		for lonIndex := 0; lonIndex < 360; lonIndex++ {
-			for latIndex := 0; latIndex < 180; latIndex++ {
-				coords[0] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex))
-				coords[1] = geos.NewCoord(float64(-180.0+lonIndex+1), float64(-90.0+latIndex))
-				coords[2] = geos.NewCoord(float64(-180.0+lonIndex+1), float64(-90.0+latIndex+1))
-				coords[3] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex+1))
-				coords[4] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex))
-				tiles[lonIndex+(360*latIndex)], _ = geos.NewPolygon(coords[:])
-			}
-		}
-
-		// Put each feature's geometry in the bucket for the right tile
-		for _, feature := range fc.Features {
-			bbox := feature.ForceBbox()
-			lonIndex := int(math.Floor(bbox[0]) + 180)
-			latIndex := int(math.Floor(bbox[1]) + 90)
-			index := lonIndex + (360 * latIndex)
-			if geometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
-				log.Print(err.Error())
-				return
-			}
-			tiledGeometries[index] = append(tiledGeometries[index], geometry)
-		}
-
-		tileMap := tileGeometries(tiledGeometries)
-		log.Printf("Geometry map has %v tiles", len(tileMap))
-		subindex.TileMap = tileMap
-		// This will ensure the sub-index is considered in subsequent operations
-		Subindexes()[subindex.Key] = subindex
-		// Let's keep track of the subindex so we can nuke it later if needed
-		subindex.Register()
-		// This will ensure the sub-index is considered with already-harvested images
-		count := CacheSubindex(subindex)
-		log.Printf("Added %v entries to %v.", count, subindex.Key)
+		go subindexFeatures(subindex, fc.Features)
+	} else {
+		message := fmt.Sprintf("Did not receive valid GeoJSON on request %v", qurl)
+		return errors.New(message)
 	}
+	return nil
+}
+
+func subindexFeatures(subindex Subindex, features []*geojson.Feature) {
+	var (
+		tiles           [180 * 360]*geos.Geometry
+		tiledGeometries [180 * 360][]*geos.Geometry
+		geometry        *geos.Geometry
+		coords          [5]geos.Coord
+		err             error
+	)
+
+	// Make some tiles to put the geometries into
+	for lonIndex := 0; lonIndex < 360; lonIndex++ {
+		for latIndex := 0; latIndex < 180; latIndex++ {
+			coords[0] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex))
+			coords[1] = geos.NewCoord(float64(-180.0+lonIndex+1), float64(-90.0+latIndex))
+			coords[2] = geos.NewCoord(float64(-180.0+lonIndex+1), float64(-90.0+latIndex+1))
+			coords[3] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex+1))
+			coords[4] = geos.NewCoord(float64(-180.0+lonIndex), float64(-90.0+latIndex))
+			tiles[lonIndex+(360*latIndex)], _ = geos.NewPolygon(coords[:])
+		}
+	}
+
+	// Put each feature's geometry in the bucket for the right tile
+	for _, feature := range features {
+		bbox := feature.ForceBbox()
+		lonIndex := int(math.Floor(bbox[0]) + 180)
+		latIndex := int(math.Floor(bbox[1]) + 90)
+		index := lonIndex + (360 * latIndex)
+		if geometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
+			log.Print(err.Error())
+			return
+		}
+		tiledGeometries[index] = append(tiledGeometries[index], geometry)
+	}
+
+	tileMap := tileGeometries(tiledGeometries)
+	log.Printf("Geometry map has %v tiles", len(tileMap))
+	subindex.TileMap = tileMap
+	// This will ensure the sub-index is considered in subsequent operations
+	Subindexes()[subindex.Key] = subindex
+	// Let's keep track of the subindex so we can nuke it later if needed
+	subindex.Register()
+	// This will ensure the sub-index is considered with already-harvested images
+	count := CacheSubindex(subindex)
+	log.Printf("Added %v entries to %v.", count, subindex.Key)
 }
 
 // func tileGeometries(tiles [180 * 360][]*geos.Geometry) map[string]*geos.PGeometry {
