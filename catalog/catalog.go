@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/redis.v3"
 
+	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-lib"
@@ -45,6 +46,7 @@ type SearchOptions struct {
 	MaximumIndex int
 	Count        int
 	SubIndex     string
+	Rigorous     bool
 }
 
 // SetImageCatalogPrefix sets the prefix for this instance
@@ -233,7 +235,7 @@ func getResults(input *geojson.Feature, options SearchOptions) (ImageDescriptors
 				return result, "", idCmd.Err()
 			}
 			if cid, err = geojson.FeatureFromBytes([]byte(idCmd.Val())); err == nil {
-				if passImageDescriptor(cid, input) {
+				if passImageDescriptor(cid, input, options.Rigorous) {
 					features = append(features, cid)
 					if options.Count > 0 && (len(features) >= options.Count) {
 						break
@@ -322,7 +324,7 @@ func populateCache(input *geojson.Feature, cacheName string) {
 			if len(input.Properties) > 0 {
 				idString = red.Get(curr).Val()
 				if cid, err = geojson.FeatureFromBytes([]byte(idString)); err == nil {
-					if !passImageDescriptor(cid, input) {
+					if !passImageDescriptor(cid, input, false) {
 						continue
 					}
 				}
@@ -391,9 +393,31 @@ func passImageDescriptorKey(key string, test *geojson.Feature) bool {
 // pass returns true if the receiving object complies
 // with all of the properties in the input
 // This uses the unmarshaled value for the key
-func passImageDescriptor(id, test *geojson.Feature) bool {
+func passImageDescriptor(id, test *geojson.Feature, rigorous bool) bool {
 	if test == nil {
 		return true
+	}
+	// pull the actual polygon in case the bounding box is not sufficiently precise
+	if rigorous {
+		var (
+			idGeometry, testGeometry *geos.Geometry
+			err                      error
+			intersects               bool
+		)
+		if idGeometry, err = geojsongeos.GeosFromGeoJSON(id.Geometry); err != nil {
+			log.Printf("Failed to convert id Geometry. %v", err.Error())
+			return false
+		}
+		if testGeometry, err = geojsongeos.GeosFromGeoJSON(test.Geometry); err != nil {
+			log.Printf("Failed to convert id Geometry. %v", err.Error())
+			return false
+		}
+		if intersects, err = testGeometry.Intersects(idGeometry); err != nil {
+			log.Printf("Failed to test containment on geometries. %v", err.Error())
+			return false
+		} else if !intersects {
+			return false
+		}
 	}
 	testBitDepth := test.PropertyInt("bitDepth")
 	idBitDepth := id.PropertyInt("bitDepth")

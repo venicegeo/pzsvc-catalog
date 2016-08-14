@@ -34,6 +34,7 @@ var versionCmd = &cobra.Command{
 // appropriately.
 func Execute() {
 	rootCommand.AddCommand(serveCmd)
+	rootCommand.AddCommand(crawlCmd)
 	rootCommand.AddCommand(planetCmd)
 	rootCommand.AddCommand(versionCmd)
 	rootCommand.Execute()
