@@ -93,10 +93,12 @@ func crawlHandler(writer http.ResponseWriter, request *http.Request) {
 func crawl(gjIfc interface{}) error {
 	var (
 		err error
-		geosLineString,
+		sourceGeometry,
 		currentGeometry,
+		lineString,
 		polygon,
 		point *geos.Geometry
+		holes      []*geos.Geometry
 		pointCount int
 		contains   bool
 		bestImage  *geojson.Feature
@@ -112,17 +114,23 @@ func crawl(gjIfc interface{}) error {
 		}
 	case *geojson.Feature:
 		bestImages.Images = geojson.NewFeatureCollection(nil)
-		if geosLineString, err = geojsongeos.GeosFromGeoJSON(gjIfc); err != nil {
+		if sourceGeometry, err = geojsongeos.GeosFromGeoJSON(gjIfc); err != nil {
+			return err
+		}
+		if sourceGeometry, err = sourceGeometry.Buffer(0.5); err != nil {
 			return err
 		}
 		if polygon, err = geos.EmptyPolygon(); err != nil {
 			return err
 		}
-		if pointCount, err = geosLineString.NPoint(); err != nil {
+		if lineString, err = sourceGeometry.Shell(); err != nil {
+			return err
+		}
+		if pointCount, err = lineString.NPoint(); err != nil {
 			return err
 		}
 		for inx := 0; inx < pointCount; inx++ {
-			if point, err = geosLineString.Point(inx); err != nil {
+			if point, err = lineString.Point(inx); err != nil {
 				return err
 			}
 			if contains, err = polygon.Contains(point); err != nil {
@@ -141,15 +149,44 @@ func crawl(gjIfc interface{}) error {
 				polygon, err = polygon.Union(currentGeometry)
 			}
 		}
+		if holes, err = sourceGeometry.Holes(); err != nil {
+			return err
+		}
+		for _, hole := range holes {
+			if pointCount, err = hole.NPoint(); err != nil {
+				return err
+			}
+			for inx := 0; inx < pointCount; inx++ {
+				if point, err = lineString.Point(inx); err != nil {
+					return err
+				}
+				if contains, err = polygon.Contains(point); err != nil {
+					return err
+				} else if contains {
+					log.Printf("Skipping point %v", point.String())
+					continue
+				}
+				if bestImage = getBestImage(point); bestImage == nil {
+					log.Print("Didn't get a candidate image.")
+				} else {
+					bestImages.Images.Features = append(bestImages.Images.Features, bestImage)
+					if currentGeometry, err = geojsongeos.GeosFromGeoJSON(bestImage.Geometry); err != nil {
+						return err
+					}
+					polygon, err = polygon.Union(currentGeometry)
+				}
+			}
+		}
 		sort.Sort(ByScore(bestImages.Images.Features))
-		bestImages.Images.Features = clip(bestImages.Images.Features)
+		bestImages.Images.Features = selfClip(bestImages.Images.Features)
+		// bestImages.Images.Features = clip(bestImages.Images.Features, g)
 		geojson.WriteFile(bestImages.Images, "out.geojson")
 	}
 
 	return err
 }
 
-func clip(features []*geojson.Feature) []*geojson.Feature {
+func selfClip(features []*geojson.Feature) []*geojson.Feature {
 	var (
 		err                            error
 		gjGeometry                     interface{}
@@ -165,23 +202,23 @@ func clip(features []*geojson.Feature) []*geojson.Feature {
 			log.Print(err.Error())
 			return features
 		}
-		log.Print(currentGeometry.String())
+		// log.Print(currentGeometry.String())
 		if contains, err = totalGeometry.Contains(currentGeometry); err != nil {
 			log.Print(err.Error())
 			return features
 		} else if !contains {
-			log.Printf("Current: %v", currentGeometry.String())
+			// log.Printf("Current: %v", currentGeometry.String())
 			if currentGeometry, err = currentGeometry.Difference(totalGeometry); err != nil {
 				log.Print(err.Error())
 				return features
 			}
-			log.Printf("Difference: %v", currentGeometry.String())
+			// log.Printf("Difference: %v", currentGeometry.String())
 			if gjGeometry, err = geojsongeos.GeoJSONFromGeos(currentGeometry); err != nil {
 				log.Print(err.Error())
 				return features
 			}
 			feature.Geometry = gjGeometry
-			log.Printf("GeoJSON: %v", feature.String())
+			// log.Printf("GeoJSON: %v", feature.String())
 			if totalGeometry, err = totalGeometry.Union(currentGeometry); err != nil {
 				log.Print(err.Error())
 				return features
