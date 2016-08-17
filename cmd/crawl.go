@@ -19,6 +19,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/paulsmith/gogeos/geos"
@@ -114,7 +115,6 @@ func crawl(gjIfc interface{}) error {
 		if geosLineString, err = geojsongeos.GeosFromGeoJSON(gjIfc); err != nil {
 			return err
 		}
-		log.Print(geosLineString.String())
 		if polygon, err = geos.EmptyPolygon(); err != nil {
 			return err
 		}
@@ -141,17 +141,24 @@ func crawl(gjIfc interface{}) error {
 				polygon, err = polygon.Union(currentGeometry)
 			}
 		}
-		var gjGeometry interface{}
-		if gjGeometry, err = geojsongeos.GeoJSONFromGeos(polygon); err == nil {
-			geojson.WriteFile(gjGeometry, "polygon.geojson")
-		} else {
-			log.Print(err.Error())
-		}
-
+		sort.Sort(ByScore(bestImages.Images.Features))
 		geojson.WriteFile(bestImages.Images, "out.geojson")
 	}
 
 	return err
+}
+
+// ByScore allows for sorting of features by their scores
+type ByScore []*geojson.Feature
+
+func (a ByScore) Len() int {
+	return len(a)
+}
+func (a ByScore) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+func (a ByScore) Less(i, j int) bool {
+	return imageScore(a[i]) < imageScore(a[j])
 }
 
 func getBestImage(point *geos.Geometry) *geojson.Feature {
@@ -162,14 +169,10 @@ func getBestImage(point *geos.Geometry) *geojson.Feature {
 		bestImage *geojson.Feature
 		geometry interface{}
 		currentScore,
-		bestScore,
-		cloudCover float64
-		acquiredDate     time.Time
-		acquiredDateUnix int64
+		bestScore float64
 		err              error
 		imageDescriptors catalog.ImageDescriptors
 	)
-	now := time.Now().Unix()
 	options.NoCache = true
 	options.Rigorous = true
 	log.Print(point.String())
@@ -181,19 +184,30 @@ func getBestImage(point *geos.Geometry) *geojson.Feature {
 		return nil
 	}
 	for _, currentImage = range imageDescriptors.Images.Features {
-		cloudCover = currentImage.PropertyFloat("cloudCover")
-		acquiredDateString := currentImage.PropertyString("acquiredDate")
-		if acquiredDate, err = time.Parse(time.RFC3339, acquiredDateString); err != nil {
-			return nil
-		}
-		acquiredDateUnix = acquiredDate.Unix()
-		currentScore = 1 - math.Sqrt(cloudCover/100.0) - float64((now-acquiredDateUnix)/(60*60*24*365*10))
+		currentScore = imageScore(currentImage)
 		if currentScore > bestScore {
 			bestImage = currentImage
 			bestImage.Properties["score"] = currentScore
 			bestScore = currentScore
 		}
 	}
-	log.Printf("Best Image: %v, Score: %v", bestImage.String(), bestScore)
 	return bestImage
+}
+
+func imageScore(image *geojson.Feature) float64 {
+	var (
+		result       float64
+		acquiredDate time.Time
+		err          error
+	)
+	cloudCover := image.PropertyFloat("cloudCover")
+	acquiredDateString := image.PropertyString("acquiredDate")
+	if acquiredDate, err = time.Parse(time.RFC3339, acquiredDateString); err != nil {
+		log.Printf("Received invalid date of %v: ", acquiredDateString)
+		return 0.0
+	}
+	acquiredDateUnix := acquiredDate.Unix()
+	now := time.Now().Unix()
+	result = 1 - (math.Sqrt(cloudCover/100.0) + (float64(now-acquiredDateUnix) / (60.0 * 60.0 * 24.0 * 365.0 * 10.0)))
+	return result
 }
