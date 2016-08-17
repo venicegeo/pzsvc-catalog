@@ -179,11 +179,36 @@ func crawl(gjIfc interface{}) error {
 		}
 		sort.Sort(ByScore(bestImages.Images.Features))
 		bestImages.Images.Features = selfClip(bestImages.Images.Features)
-		// bestImages.Images.Features = clip(bestImages.Images.Features, g)
+		bestImages.Images.Features = clip(bestImages.Images.Features, sourceGeometry)
 		geojson.WriteFile(bestImages.Images, "out.geojson")
 	}
 
 	return err
+}
+
+func clip(features []*geojson.Feature, geometry *geos.Geometry) []*geojson.Feature {
+	var (
+		err             error
+		gjGeometry      interface{}
+		currentGeometry *geos.Geometry
+	)
+
+	for _, feature := range features {
+		if currentGeometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
+			log.Print(err.Error())
+			return features
+		}
+		if currentGeometry, err = currentGeometry.Intersection(geometry); err != nil {
+			log.Print(err.Error())
+			return features
+		}
+		if gjGeometry, err = geojsongeos.GeoJSONFromGeos(currentGeometry); err != nil {
+			log.Print(err.Error())
+			return features
+		}
+		feature.Geometry = gjGeometry
+	}
+	return features
 }
 
 func selfClip(features []*geojson.Feature) []*geojson.Feature {
