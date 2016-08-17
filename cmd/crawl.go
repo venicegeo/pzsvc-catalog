@@ -142,10 +142,53 @@ func crawl(gjIfc interface{}) error {
 			}
 		}
 		sort.Sort(ByScore(bestImages.Images.Features))
+		bestImages.Images.Features = clip(bestImages.Images.Features)
 		geojson.WriteFile(bestImages.Images, "out.geojson")
 	}
 
 	return err
+}
+
+func clip(features []*geojson.Feature) []*geojson.Feature {
+	var (
+		err                            error
+		gjGeometry                     interface{}
+		currentGeometry, totalGeometry *geos.Geometry
+		contains                       bool
+	)
+	if totalGeometry, err = geos.EmptyPolygon(); err != nil {
+		log.Print(err.Error())
+		return features
+	}
+	for _, feature := range features {
+		if currentGeometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
+			log.Print(err.Error())
+			return features
+		}
+		log.Print(currentGeometry.String())
+		if contains, err = totalGeometry.Contains(currentGeometry); err != nil {
+			log.Print(err.Error())
+			return features
+		} else if !contains {
+			log.Printf("Current: %v", currentGeometry.String())
+			if currentGeometry, err = currentGeometry.Difference(totalGeometry); err != nil {
+				log.Print(err.Error())
+				return features
+			}
+			log.Printf("Difference: %v", currentGeometry.String())
+			if gjGeometry, err = geojsongeos.GeoJSONFromGeos(currentGeometry); err != nil {
+				log.Print(err.Error())
+				return features
+			}
+			feature.Geometry = gjGeometry
+			log.Printf("GeoJSON: %v", feature.String())
+			if totalGeometry, err = totalGeometry.Union(currentGeometry); err != nil {
+				log.Print(err.Error())
+				return features
+			}
+		}
+	}
+	return features
 }
 
 // ByScore allows for sorting of features by their scores
