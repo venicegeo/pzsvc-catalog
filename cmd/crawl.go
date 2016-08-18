@@ -117,13 +117,14 @@ func crawl(gjIfc interface{}) error {
 		if sourceGeometry, err = geojsongeos.GeosFromGeoJSON(gjIfc); err != nil {
 			return err
 		}
-		if sourceGeometry, err = sourceGeometry.Buffer(0.5); err != nil {
+		if sourceGeometry, err = sourceGeometry.Buffer(0.25); err != nil {
 			return err
 		}
 		if polygon, err = geos.EmptyPolygon(); err != nil {
 			return err
 		}
 		if lineString, err = sourceGeometry.Shell(); err != nil {
+			log.Printf("Shell for %v failed: %v", sourceGeometry.String(), err.Error())
 			return err
 		}
 		if pointCount, err = lineString.NPoint(); err != nil {
@@ -188,22 +189,23 @@ func crawl(gjIfc interface{}) error {
 
 func clip(features []*geojson.Feature, geometry *geos.Geometry) []*geojson.Feature {
 	var (
-		err             error
-		gjGeometry      interface{}
-		currentGeometry *geos.Geometry
+		err        error
+		gjGeometry interface{}
+		currentGeometry,
+		intersectedGeometry *geos.Geometry
 	)
 
 	for _, feature := range features {
 		if currentGeometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
-			log.Print(err.Error())
+			log.Panic(err.Error())
 			return features
 		}
-		if currentGeometry, err = currentGeometry.Intersection(geometry); err != nil {
-			log.Print(err.Error())
-			return features
+		if intersectedGeometry, err = currentGeometry.Intersection(geometry); err != nil {
+			log.Printf("Skipping current geometry: %v\n%v", currentGeometry.String(), err.Error())
+			continue
 		}
-		if gjGeometry, err = geojsongeos.GeoJSONFromGeos(currentGeometry); err != nil {
-			log.Print(err.Error())
+		if gjGeometry, err = geojsongeos.GeoJSONFromGeos(intersectedGeometry); err != nil {
+			log.Panic(err.Error())
 			return features
 		}
 		feature.Geometry = gjGeometry
@@ -224,28 +226,28 @@ func selfClip(features []*geojson.Feature) []*geojson.Feature {
 	}
 	for _, feature := range features {
 		if currentGeometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
-			log.Print(err.Error())
+			log.Panic(err.Error())
 			return features
 		}
 		// log.Print(currentGeometry.String())
 		if contains, err = totalGeometry.Contains(currentGeometry); err != nil {
-			log.Print(err.Error())
+			log.Panic(err.Error())
 			return features
 		} else if !contains {
 			// log.Printf("Current: %v", currentGeometry.String())
 			if currentGeometry, err = currentGeometry.Difference(totalGeometry); err != nil {
-				log.Print(err.Error())
+				log.Panic(err.Error())
 				return features
 			}
 			// log.Printf("Difference: %v", currentGeometry.String())
 			if gjGeometry, err = geojsongeos.GeoJSONFromGeos(currentGeometry); err != nil {
-				log.Print(err.Error())
+				log.Panic(err.Error())
 				return features
 			}
 			feature.Geometry = gjGeometry
 			// log.Printf("GeoJSON: %v", feature.String())
 			if totalGeometry, err = totalGeometry.Union(currentGeometry); err != nil {
-				log.Print(err.Error())
+				log.Panic(err.Error())
 				return features
 			}
 		}
