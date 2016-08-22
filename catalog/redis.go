@@ -16,6 +16,7 @@ package catalog
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -80,7 +81,7 @@ func (services VcapServices) RedisOptions() *redis.Options {
 	var (
 		result redis.Options
 	)
-	log.Printf("Received Redis options of: %#v", services)
+	fmt.Printf("Received Redis options of: %#v", services)
 	ok := true
 	if len(services.Redis) == 0 {
 		ok = false
@@ -97,6 +98,6 @@ func (services VcapServices) RedisOptions() *redis.Options {
 	if !ok {
 		result.Addr = "127.0.0.1:6379"
 	}
-	log.Printf("Interpreted Redis options as: %#v", result)
+	fmt.Printf("Interpreted Redis options as: %#v", result)
 	return &result
 }
