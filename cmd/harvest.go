@@ -39,27 +39,28 @@ type HarvestOptions struct {
 	Event               bool   `json:"event"`
 	Reharvest           bool   `json:"reharvest"`
 	PlanetKey           string `json:"PL_API_KEY"`
+	PiazzaGateway       string `json:"pzGateway"`
 	PiazzaAuthorization string `json:"pz-auth"`
 	callback            harvestCallback
 	EventID             string
 	Cap                 bool `json:"cap"`
 }
 
-var harvestETMapping map[string]string
+var harvestETMapping map[string]interface{}
 
-func harvestEventTypeMapping() map[string]string {
+func harvestEventTypeMapping() map[string]interface{} {
 	if harvestETMapping == nil {
-		harvestETMapping = make(map[string]string)
-		harvestETMapping["imageID"] = pzsvc.MappingElementTypeString
-		harvestETMapping["acquiredDate"] = pzsvc.MappingElementTypeString
-		harvestETMapping["cloudCover"] = pzsvc.MappingElementTypeLong
-		harvestETMapping["resolution"] = pzsvc.MappingElementTypeLong
-		harvestETMapping["sensorName"] = pzsvc.MappingElementTypeString
-		harvestETMapping["minx"] = pzsvc.MappingElementTypeLong
-		harvestETMapping["miny"] = pzsvc.MappingElementTypeLong
-		harvestETMapping["maxx"] = pzsvc.MappingElementTypeLong
-		harvestETMapping["maxy"] = pzsvc.MappingElementTypeLong
-		harvestETMapping["link"] = pzsvc.MappingElementTypeString
+		harvestETMapping = make(map[string]interface{})
+		harvestETMapping["imageID"] = "string"
+		harvestETMapping["acquiredDate"] = "string"
+		harvestETMapping["cloudCover"] = "long"
+		harvestETMapping["resolution"] = "long"
+		harvestETMapping["sensorName"] = "string"
+		harvestETMapping["minx"] = "long"
+		harvestETMapping["miny"] = "long"
+		harvestETMapping["maxx"] = "long"
+		harvestETMapping["maxy"] = "long"
+		harvestETMapping["link"] = "string"
 	}
 	return harvestETMapping
 }
@@ -80,7 +81,7 @@ func issueEvent(options HarvestOptions, imageID string) error {
 		return err
 	}
 
-	_, err = pzsvc.SubmitSinglePart("POST", string(eventBytes), pzsvc.Gateway()+"/event", options.PiazzaAuthorization)
+	_, err = pzsvc.SubmitSinglePart("POST", string(eventBytes), options.PiazzaGateway+"/event", options.PiazzaAuthorization)
 	return err
 }
 func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
@@ -88,8 +89,9 @@ func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 		err       error
 		eventType pzsvc.EventType
 	)
+	pzGateway := request.FormValue("pzGateway")
 	pzAuth := request.Header.Get("Authorization")
-	if err = testPiazzaAuth(pzAuth); err != nil {
+	if err = testPiazzaAuth(pzGateway, pzAuth); err != nil {
 		if httpError, ok := err.(*pzsvc.HTTPError); ok {
 			http.Error(writer, httpError.Message, httpError.Status)
 		} else {
@@ -97,8 +99,7 @@ func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 		}
 		return
 	}
-
-	if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzAuth); err == nil {
+	if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzGateway, pzAuth); err == nil {
 		writer.Write([]byte(eventType.EventTypeID))
 	} else {
 		http.Error(writer, "Failed to retrieve Event Type ID: "+err.Error(), http.StatusInternalServerError)

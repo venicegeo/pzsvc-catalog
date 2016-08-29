@@ -246,8 +246,8 @@ Serve the image catalog`,
 	},
 }
 
-func testPiazzaAuth(auth string) error {
+func testPiazzaAuth(pzGateway, auth string) error {
 
-	_, err := pzsvc.SubmitSinglePart("GET", "", pzsvc.Gateway()+"/eventType", auth)
+	_, err := pzsvc.SubmitSinglePart("GET", "", pzGateway+"/eventType", auth)
 	return err
 }

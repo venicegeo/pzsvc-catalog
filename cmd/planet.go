@@ -40,6 +40,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	planetKey := request.FormValue("PL_API_KEY")
 	pzAuth := request.Header.Get("Authorization")
 	recurring, _ = strconv.ParseBool(request.FormValue("recurring"))
+	pzGateway := request.FormValue("pzGateway")
 	cap, _ = strconv.ParseBool(request.FormValue("cap"))
 	options := HarvestOptions{
 		PlanetKey:           planetKey,
@@ -47,10 +48,11 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 		Reharvest:           reharvest,
 		Event:               event,
 		Recurring:           recurring,
+		PiazzaGateway:       pzGateway,
 		Cap:                 cap}
 
 	// Let's test the credentials before we do anything
-	if err = testPiazzaAuth(pzAuth); err != nil {
+	if err = testPiazzaAuth(pzGateway, pzAuth); err != nil {
 		if httpError, ok := err.(*pzsvc.HTTPError); ok {
 			http.Error(writer, httpError.Message, httpError.Status)
 		} else {
@@ -60,7 +62,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	if event {
-		if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzAuth); err == nil {
+		if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzGateway, pzAuth); err == nil {
 			options.EventID = eventType.EventTypeID
 		} else {
 			http.Error(writer, "Failed to retrieve harvest event type ID: "+err.Error(), http.StatusBadRequest)
@@ -253,14 +255,14 @@ func harvestPlanet(options HarvestOptions) {
 			event     pzsvc.Event
 		)
 		// Get the event type
-		mapping := make(map[string]string)
-		if eventType, err = pzsvc.GetEventType(planetRecurringRoot, mapping, options.PiazzaAuthorization); err != nil {
+		mapping := make(map[string]interface{})
+		if eventType, err = pzsvc.GetEventType(planetRecurringRoot, mapping, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
 			log.Printf("Failed to retrieve event type %v: %v", planetRecurringRoot, err.Error())
 			return
 		}
 
 		// Is there an event?
-		if events, err = pzsvc.Events(eventType.EventTypeID, options.PiazzaAuthorization); err != nil {
+		if events, err = pzsvc.Events(eventType.EventTypeID, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
 			log.Printf("Failed to retrieve events for event type %v: %v", eventType.EventTypeID, err.Error())
 			return
 		}
@@ -275,7 +277,7 @@ func harvestPlanet(options HarvestOptions) {
 			event = pzsvc.Event{CronSchedule: harvestCron,
 				EventTypeID: eventType.EventTypeID,
 				Data:        make(map[string]interface{})}
-			if _, err = pzsvc.AddEvent(event, options.PiazzaAuthorization); err != nil {
+			if _, err = pzsvc.AddEvent(event, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
 				log.Printf("Failed to add event for event type %v: %v", eventType.EventTypeID, err.Error())
 				return
 			}
