@@ -89,6 +89,10 @@ func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 		err       error
 		eventType pzsvc.EventType
 	)
+	if pzsvc.Preflight(writer, request) {
+		return
+	}
+
 	pzGateway := request.FormValue("pzGateway")
 	pzAuth := request.Header.Get("Authorization")
 	if err = testPiazzaAuth(pzGateway, pzAuth); err != nil {

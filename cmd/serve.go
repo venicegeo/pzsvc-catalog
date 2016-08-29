@@ -122,14 +122,7 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 		beachfrontScore float64
 	)
 
-	if origin := request.Header.Get("Origin"); origin != "" {
-		writer.Header().Set("Access-Control-Allow-Origin", origin)
-		writer.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		writer.Header().Set("Access-Control-Allow-Headers",
-			"Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-	}
-	// Stop here if its Preflighted OPTIONS request
-	if request.Method == "OPTIONS" {
+	if pzsvc.Preflight(writer, request) {
 		return
 	}
 
