@@ -131,44 +131,44 @@ func harvestSanityCheck() error {
 	return nil
 }
 
-var usBoundary *geojson.FeatureCollection
-
-func getUSBoundary() *geojson.FeatureCollection {
-	var (
-		gj  interface{}
-		err error
-	)
-	if usBoundary == nil {
-		if gj, err = geojson.ParseFile("data/Black_list_AOIs.geojson"); err != nil {
-			log.Printf("Parse error: %v\n", err.Error())
-			return nil
-		}
-		usBoundary = gj.(*geojson.FeatureCollection)
-	}
-	return usBoundary
-}
-
-func whiteList(feature *geojson.Feature) bool {
-	bbox := feature.ForceBbox()
-	fc := getUSBoundary()
-	if fc != nil {
-		for _, curr := range fc.Features {
-			if bbox.Overlaps(curr.ForceBbox()) {
-				return false
-			}
-		}
-	}
-	return true
-}
+// var usBoundary *geojson.FeatureCollection
+//
+// func getUSBoundary() *geojson.FeatureCollection {
+// 	var (
+// 		gj  interface{}
+// 		err error
+// 	)
+// 	if usBoundary == nil {
+// 		if gj, err = geojson.ParseFile("data/Black_list_AOIs.geojson"); err != nil {
+// 			log.Printf("Parse error: %v\n", err.Error())
+// 			return nil
+// 		}
+// 		usBoundary = gj.(*geojson.FeatureCollection)
+// 	}
+// 	return usBoundary
+// }
+//
+// func whiteList(feature *geojson.Feature) bool {
+// 	bbox := feature.ForceBbox()
+// 	fc := getUSBoundary()
+// 	if fc != nil {
+// 		for _, curr := range fc.Features {
+// 			if bbox.Overlaps(curr.ForceBbox()) {
+// 				return false
+// 			}
+// 		}
+// 	}
+// 	return true
+// }
 
 func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) error {
 	var (
 		err error
 	)
 	for _, curr := range fc.Features {
-		if !whiteList(curr) {
-			continue
-		}
+		// if !whiteList(curr) {
+		// 	continue
+		// }
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		id := curr.ID
