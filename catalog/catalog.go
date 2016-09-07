@@ -515,6 +515,26 @@ func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
 	return key, nil
 }
 
+// SaveFeatureProperties retrieves the requested feature from the database,
+// Updates properties with the contents of the map provided, and re-saves
+func SaveFeatureProperties(id string, properties map[string]interface{}) error {
+	var (
+		feature *geojson.Feature
+		err     error
+	)
+	if feature, err = GetImageMetadata(id); err == nil {
+		for key, property := range properties {
+			feature.Properties[key] = property
+		}
+		if _, err = StoreFeature(feature, true); err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
+	return nil
+}
+
 func calculateScore(feature *geojson.Feature) float64 {
 	var score float64
 	acquiredDateStr := feature.PropertyString("acquiredDate")
