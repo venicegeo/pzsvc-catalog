@@ -102,7 +102,7 @@ func crawl(gjIfc interface{}) error {
 		pointCount int
 		contains   bool
 		bestImage  *geojson.Feature
-		bestImages catalog.ImageDescriptors
+		bestImages catalog.SceneDescriptors
 	)
 
 	switch gj := gjIfc.(type) {
@@ -113,7 +113,7 @@ func crawl(gjIfc interface{}) error {
 			}
 		}
 	case *geojson.Feature:
-		bestImages.Images = geojson.NewFeatureCollection(nil)
+		bestImages.Scenes = geojson.NewFeatureCollection(nil)
 		if sourceGeometry, err = geojsongeos.GeosFromGeoJSON(gjIfc); err != nil {
 			return err
 		}
@@ -143,7 +143,7 @@ func crawl(gjIfc interface{}) error {
 			if bestImage = getBestImage(point); bestImage == nil {
 				log.Print("Didn't get a candidate image.")
 			} else {
-				bestImages.Images.Features = append(bestImages.Images.Features, bestImage)
+				bestImages.Scenes.Features = append(bestImages.Scenes.Features, bestImage)
 				if currentGeometry, err = geojsongeos.GeosFromGeoJSON(bestImage.Geometry); err != nil {
 					return err
 				}
@@ -170,7 +170,7 @@ func crawl(gjIfc interface{}) error {
 				if bestImage = getBestImage(point); bestImage == nil {
 					log.Print("Didn't get a candidate image.")
 				} else {
-					bestImages.Images.Features = append(bestImages.Images.Features, bestImage)
+					bestImages.Scenes.Features = append(bestImages.Scenes.Features, bestImage)
 					if currentGeometry, err = geojsongeos.GeosFromGeoJSON(bestImage.Geometry); err != nil {
 						return err
 					}
@@ -178,10 +178,10 @@ func crawl(gjIfc interface{}) error {
 				}
 			}
 		}
-		sort.Sort(ByScore(bestImages.Images.Features))
-		bestImages.Images.Features = selfClip(bestImages.Images.Features)
-		bestImages.Images.Features = clip(bestImages.Images.Features, sourceGeometry)
-		geojson.WriteFile(bestImages.Images, "out.geojson")
+		sort.Sort(ByScore(bestImages.Scenes.Features))
+		bestImages.Scenes.Features = selfClip(bestImages.Scenes.Features)
+		bestImages.Scenes.Features = clip(bestImages.Scenes.Features, sourceGeometry)
+		geojson.WriteFile(bestImages.Scenes, "out.geojson")
 	}
 
 	return err
@@ -278,7 +278,7 @@ func getBestImage(point *geos.Geometry) *geojson.Feature {
 		currentScore,
 		bestScore float64
 		err              error
-		imageDescriptors catalog.ImageDescriptors
+		sceneDescriptors catalog.SceneDescriptors
 	)
 	options.NoCache = true
 	options.Rigorous = true
@@ -286,11 +286,11 @@ func getBestImage(point *geos.Geometry) *geojson.Feature {
 	geometry, _ = geojsongeos.GeoJSONFromGeos(point)
 	feature = geojson.NewFeature(geometry, "", nil)
 	feature.Bbox = feature.ForceBbox()
-	if imageDescriptors, _, err = catalog.GetImages(feature, options); err != nil {
+	if sceneDescriptors, _, err = catalog.GetScenes(feature, options); err != nil {
 		log.Printf("Failed to get images from image catalog: %v", err.Error())
 		return nil
 	}
-	for _, currentImage = range imageDescriptors.Images.Features {
+	for _, currentImage = range sceneDescriptors.Scenes.Features {
 		currentScore = imageScore(currentImage)
 		if currentScore > bestScore {
 			bestImage = currentImage

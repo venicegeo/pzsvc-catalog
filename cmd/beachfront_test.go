@@ -41,12 +41,12 @@ func TestBeachfront(t *testing.T) {
 	}
 
 	options := catalog.SearchOptions{MinimumIndex: 0, MaximumIndex: -1}
-	images, _, _ := catalog.GetImages(nil, options)
+	scenes, _, _ := catalog.GetScenes(nil, options)
 
-	if len(images.Images.Features) < 1 {
+	if len(scenes.Scenes.Features) < 1 {
 		t.Error("Where are the images?")
 	}
-	for _, curr := range images.Images.Features {
+	for _, curr := range scenes.Scenes.Features {
 		t.Logf("%v", curr)
 	}
 	// rc.Del(prefix)

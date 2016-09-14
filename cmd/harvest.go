@@ -16,10 +16,13 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"os"
 
 	"github.com/venicegeo/geojson-go/geojson"
+	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -107,5 +110,67 @@ func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte(eventType.EventTypeID))
 	} else {
 		http.Error(writer, "Failed to retrieve Event Type ID: "+err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func unharvestHandler(writer http.ResponseWriter, request *http.Request) {
+	var (
+		err     error
+		options *catalog.SearchOptions
+		sf      *geojson.Feature
+		scenes  catalog.SceneDescriptors
+		successes,
+		failures int
+	)
+	if pzsvc.Preflight(writer, request) {
+		return
+	}
+
+	pzGateway := request.FormValue("pzGateway")
+	pzAuth := request.Header.Get("Authorization")
+	if err = testPiazzaAuth(pzGateway, pzAuth); err != nil {
+		if httpError, ok := err.(*pzsvc.HTTPError); ok {
+			http.Error(writer, httpError.Message, httpError.Status)
+		} else {
+			http.Error(writer, "Unable to attempt authentication: "+err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if options, err = searchOptions(request); err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// Never want to involve the cache in the search request
+	options.NoCache = true
+	// Never want to cap the number of scenes to remove
+	options.Count = 0
+	if sf, err = searchFeature(request); err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if (sf.PropertyString("acquiredDate") == "") &&
+		(sf.PropertyString("maxAcquiredDate") == "") {
+		http.Error(writer, "An unharvest request must contain at least one of the following:\n* acquiredDate\n* maxAcquiredDate", http.StatusBadRequest)
+		return
+	}
+	if scenes, _, err = catalog.GetScenes(sf, *options); err == nil {
+		if scenes.Scenes == nil {
+			log.Printf("nil Scenes")
+		} else if scenes.Scenes.Features == nil {
+			log.Printf("nil Features")
+		}
+		for _, scene := range scenes.Scenes.Features {
+			if err = catalog.RemoveFeature(scene); err == nil {
+				successes++
+			} else {
+				failures++
+				log.Printf("Failed to remove scene %v: %v", scene.ID, err.Error())
+			}
+		}
+		writer.Header().Set("Content-Type", "text/plain")
+		writer.Write([]byte(fmt.Sprintf("Removed %v scenes; %v failed.", successes, failures)))
+	} else {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 }

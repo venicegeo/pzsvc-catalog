@@ -84,7 +84,7 @@ func CacheSubindex(subindex Subindex) int64 {
 		flag       bool
 		options    SearchOptions
 		count      int
-		ids        ImageDescriptors
+		ids        SceneDescriptors
 		err        error
 	)
 	red, _ := RedisClient()
@@ -113,10 +113,10 @@ func CacheSubindex(subindex Subindex) int64 {
 		defer transaction.Close()
 
 		count = 0
-		for _, feature := range ids.Images.Features {
-			geos, _ := geojsongeos.GeosFromGeoJSON(feature)
+		for _, feature := range ids.Scenes.Features {
+			geos1, _ := geojsongeos.GeosFromGeoJSON(feature)
 			for _, geos2 := range subindexMap[subindex.Key].TileMap {
-				if intersects, _ = geos2.Intersects(geos); intersects {
+				if intersects, _ = geos2.Intersects(geos1); intersects {
 					z.Score = calculateScore(feature)
 					if math.IsNaN(z.Score) {
 						if !flag {
