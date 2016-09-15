@@ -156,7 +156,7 @@ func CreateSubindex(subindex Subindex) error {
 	)
 
 	v := url.Values{}
-	v.Set("maxFeatures", "9999")
+	v.Set("count", "9999")
 	v.Set("outputFormat", "application/json")
 	v.Set("version", "2.0.0")
 	v.Set("request", "GetFeature")
