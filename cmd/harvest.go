@@ -56,13 +56,13 @@ func harvestEventTypeMapping() map[string]interface{} {
 		harvestETMapping = make(map[string]interface{})
 		harvestETMapping["imageID"] = "string"
 		harvestETMapping["acquiredDate"] = "string"
-		harvestETMapping["cloudCover"] = "long"
-		harvestETMapping["resolution"] = "long"
+		harvestETMapping["cloudCover"] = "double"
+		harvestETMapping["resolution"] = "double"
 		harvestETMapping["sensorName"] = "string"
-		harvestETMapping["minx"] = "long"
-		harvestETMapping["miny"] = "long"
-		harvestETMapping["maxx"] = "long"
-		harvestETMapping["maxy"] = "long"
+		harvestETMapping["minx"] = "double"
+		harvestETMapping["miny"] = "double"
+		harvestETMapping["maxx"] = "double"
+		harvestETMapping["maxy"] = "double"
 		harvestETMapping["link"] = "string"
 	}
 	return harvestETMapping
@@ -70,7 +70,7 @@ func harvestEventTypeMapping() map[string]interface{} {
 
 var didOnce bool
 
-func issueEvent(options HarvestOptions, imageID string) error {
+func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(error)) error {
 	var (
 		err        error
 		eventBytes []byte
@@ -78,13 +78,25 @@ func issueEvent(options HarvestOptions, imageID string) error {
 	event := pzsvc.Event{
 		EventTypeID: options.EventID,
 		Data:        make(map[string]interface{})}
-	event.Data["ImageID"] = imageID
+	event.Data["imageID"] = feature.ID
+	event.Data["minx"] = feature.ForceBbox()[0]
+	event.Data["miny"] = feature.ForceBbox()[1]
+	event.Data["maxx"] = feature.ForceBbox()[2]
+	event.Data["maxy"] = feature.ForceBbox()[3]
+	event.Data["acquiredDate"] = feature.PropertyString("acquiredDate")
+	event.Data["sensorName"] = feature.PropertyString("sensorName")
+	event.Data["link"] = feature.PropertyString("path")
+	event.Data["resolution"] = feature.PropertyFloat("resolution")
+	event.Data["cloudCover"] = feature.PropertyFloat("cloudCover")
 
 	if eventBytes, err = json.Marshal(&event); err != nil {
 		return err
 	}
 
 	_, err = pzsvc.SubmitSinglePart("POST", string(eventBytes), options.PiazzaGateway+"/event", options.PiazzaAuthorization)
+	if callback != nil {
+		callback(err)
+	}
 	return err
 }
 func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {

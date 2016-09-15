@@ -196,14 +196,15 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) e
 		properties["bands"] = bands
 		feature := geojson.NewFeature(curr.Geometry, "landsat:"+id, properties)
 		feature.Bbox = curr.ForceBbox()
-		if id, err = catalog.StoreFeature(feature, options.Reharvest); err != nil {
+		if _, err = catalog.StoreFeature(feature, options.Reharvest); err != nil {
 			log.Print(err.Error())
 			break
 		}
 		if options.Event {
-			if err = issueEvent(options, id); err != nil {
-				return err
+			cb := func(err error) {
+				log.Printf("Failed to issue event for %v: %v", id, err.Error())
 			}
+			go issueEvent(options, feature, cb)
 		}
 	}
 	return err
