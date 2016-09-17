@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -71,10 +70,6 @@ func harvestEventTypeMapping() map[string]interface{} {
 var didOnce bool
 
 func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(error)) error {
-	var (
-		err        error
-		eventBytes []byte
-	)
 	event := pzsvc.Event{
 		EventTypeID: options.EventID,
 		Data:        make(map[string]interface{})}
@@ -89,11 +84,7 @@ func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(
 	event.Data["resolution"] = feature.PropertyFloat("resolution")
 	event.Data["cloudCover"] = feature.PropertyFloat("cloudCover")
 
-	if eventBytes, err = json.Marshal(&event); err != nil {
-		return err
-	}
-
-	_, err = pzsvc.SubmitSinglePart("POST", string(eventBytes), options.PiazzaGateway+"/event", options.PiazzaAuthorization)
+	_, err := pzsvc.AddEvent(event, options.PiazzaGateway, options.PiazzaAuthorization)
 	if callback != nil {
 		callback(err)
 	}

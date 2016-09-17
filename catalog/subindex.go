@@ -120,7 +120,6 @@ func CacheSubindex(subindex Subindex) int64 {
 					z.Score = calculateScore(feature)
 					if math.IsNaN(z.Score) {
 						if !flag {
-							log.Printf("%v", feature.Properties)
 							flag = true
 						}
 					} else {
