@@ -14,6 +14,7 @@ Call http://localhost:8080/discover with one or more of the following:
 * bbox = x1,y1,x2,y2
 * acquiredDate (RFC 3339)
 * cloudCover (0 to 100)
+* Example: http://localhost:8080/discover?bbox=-120,-60,-90,-10&acquiredDate=2016-09-01T00:00:00Z
 
 ## Subsequent harvests
 Use the same endpoint as the initial harvest
