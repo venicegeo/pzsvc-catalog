@@ -672,3 +672,17 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 	}
 	return nil, fmt.Errorf("Requested band \"%v\" not found in image %v.", band, feature.ID)
 }
+
+// SetKey shouldn't exist. It is a hack
+func SetKey(key, value string) error {
+	red, _ := RedisClient()
+	sc := red.Set(key, value, 0)
+	return sc.Err()
+}
+
+// GetKey shouldn't exist. It is a hack
+func GetKey(key string) (string, error) {
+	red, _ := RedisClient()
+	sc := red.Get(key)
+	return sc.Val(), sc.Err()
+}

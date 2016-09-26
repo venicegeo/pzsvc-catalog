@@ -37,12 +37,11 @@ var (
 
 // HarvestOptions are options for a harvesting operation
 type HarvestOptions struct {
-	Recurring           bool   `json:"recurring"`
-	Event               bool   `json:"event"`
-	Reharvest           bool   `json:"reharvest"`
+	Event               bool   `json:"event,omitempty"`
+	Reharvest           bool   `json:"reharvest,omitempty"`
 	PlanetKey           string `json:"PL_API_KEY"`
 	PiazzaGateway       string `json:"pzGateway"`
-	PiazzaAuthorization string `json:"pz-auth"`
+	PiazzaAuthorization string `json:"pzAuth"`
 	callback            harvestCallback
 	EventID             string
 	Cap                 bool `json:"cap"`
@@ -100,7 +99,16 @@ func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	pzGateway := request.FormValue("pzGateway")
+	if pzGateway == "" {
+		http.Error(writer, "pzGateway is required", http.StatusBadRequest)
+		return
+	}
 	pzAuth := request.Header.Get("Authorization")
+	if pzAuth == "" {
+		writer.Header().Set("WWW-Authenticate", `Basic realm="MY REALM"`)
+		http.Error(writer, "401 Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	if err = testPiazzaAuth(pzGateway, pzAuth); err != nil {
 		if httpError, ok := err.(*pzsvc.HTTPError); ok {
 			http.Error(writer, httpError.Message, httpError.Status)
