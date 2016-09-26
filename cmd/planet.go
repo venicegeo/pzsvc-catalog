@@ -33,31 +33,44 @@ const planetRecurringRoot = "beachfront:harvest:planet-recurrence"
 
 func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	var (
-		drop, recurring, reharvest, event, cap bool
-		err                                    error
-		eventType                              pzsvc.EventType
+		drop          bool
+		event         bool
+		recurring     bool
+		err           error
+		eventType     pzsvc.EventType
+		options       HarvestOptions
+		optionsString string
 	)
-	pzGateway := request.FormValue("pzGateway")
-	if pzGateway == "" {
+	optionsKey := request.FormValue("optionsKey")
+	if optionsKey == "" {
+		options.PiazzaGateway = request.FormValue("pzGateway")
+		options.Reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
+		options.PlanetKey = request.FormValue("PL_API_KEY")
+		options.PiazzaAuthorization = request.Header.Get("Authorization")
+		options.Cap, _ = strconv.ParseBool(request.FormValue("cap"))
+		recurring, _ = strconv.ParseBool(request.FormValue("recurring"))
+	} else {
+		if optionsString, err = catalog.GetKey(planetRecurringRoot + ":" + optionsKey); err != nil {
+			http.Error(writer, "Unable to retrieve requestion options: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err = json.Unmarshal([]byte(optionsString), &options); err != nil {
+			http.Error(writer, "Unable to unmarshal request options: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	if options.PiazzaGateway == "" {
 		http.Error(writer, "This request requires a 'pzGateway'.", http.StatusBadRequest)
 		return
 	}
-	reharvest, _ = strconv.ParseBool(request.FormValue("reharvest"))
+
+	// This is the only parameter that needs to be overridden from cached options
 	event, _ = strconv.ParseBool(request.FormValue("event"))
-	planetKey := request.FormValue("PL_API_KEY")
-	pzAuth := request.Header.Get("Authorization")
-	recurring, _ = strconv.ParseBool(request.FormValue("recurring"))
-	cap, _ = strconv.ParseBool(request.FormValue("cap"))
-	options := HarvestOptions{
-		PlanetKey:           planetKey,
-		PiazzaAuthorization: pzAuth,
-		Reharvest:           reharvest,
-		Event:               event,
-		PiazzaGateway:       pzGateway,
-		Cap:                 cap}
+	options.Event = event
 
 	// Let's test the credentials before we do anything
-	if err = testPiazzaAuth(pzGateway, pzAuth); err != nil {
+	if err = testPiazzaAuth(options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
 		if httpError, ok := err.(*pzsvc.HTTPError); ok {
 			http.Error(writer, httpError.Message, httpError.Status)
 		} else {
@@ -67,7 +80,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	if event {
-		if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), pzGateway, pzAuth); err == nil {
+		if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), options.PiazzaGateway, options.PiazzaAuthorization); err == nil {
 			options.EventID = eventType.EventTypeID
 		} else {
 			http.Error(writer, "Failed to retrieve harvest event type ID: "+err.Error(), http.StatusBadRequest)
@@ -350,9 +363,8 @@ func recurringURL(requestURL *url.URL, host, piazzaGateway, key string) *url.URL
 	}
 	query := make(url.Values)
 	query.Add("event", "true")
-	query.Add("pzGateway", result.Query().Get("pzGateway"))
 	if key != "" {
-		query.Add("credentialsKey", key)
+		query.Add("optionsKey", key)
 	}
 	result.RawQuery = query.Encode()
 	return result
