@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -84,10 +85,9 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 		if err = planetRecurring(request.URL, options); err != nil {
 			writer.Write([]byte("\n" + err.Error()))
 		}
-	} else {
-		go harvestPlanet(options)
-		writer.Write([]byte("Harvesting started. Check back later."))
 	}
+	go harvestPlanet(options)
+	writer.Write([]byte("Harvesting started. Check back later."))
 }
 
 func harvestPlanetEndpoint(endpoint string, options HarvestOptions) {
@@ -252,7 +252,9 @@ This function will harvest metadata from Planet Labs, using the PL_API_KEY in th
 	},
 }
 
-const harvestCron = "@every 24h"
+const harvestCron = "@every 1m"
+
+// const harvestCron = "@every 24h"
 
 func harvestPlanet(options HarvestOptions) {
 	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
@@ -263,14 +265,17 @@ func harvestPlanet(options HarvestOptions) {
 
 func planetRecurring(requestURL *url.URL, options HarvestOptions) error {
 	var (
-		// events     []pzsvc.Event
-		// err        error
-		// eventType  pzsvc.EventType
-		// event      pzsvc.Event
-		serviceIn  pzsvc.Service
-		serviceOut pzsvc.ServiceResponse
-		b          []byte
-		err        error
+		events        []pzsvc.Event
+		eventType     pzsvc.EventType
+		event         pzsvc.Event
+		matchingEvent *pzsvc.Event
+		newEvent      pzsvc.Event
+		serviceIn     pzsvc.Service
+		serviceOut    pzsvc.ServiceResponse
+		triggerOut    pzsvc.TriggerResponse
+		trigger       pzsvc.Trigger
+		b             []byte
+		err           error
 	)
 	// Register the service
 	serviceIn.URL = recurringURL(requestURL, options.PiazzaGateway, "").String()
@@ -290,39 +295,48 @@ func planetRecurring(requestURL *url.URL, options HarvestOptions) error {
 	log.Printf("%#v", serviceOut)
 
 	b, _ = json.Marshal(options)
-	err = catalog.SetKey(planetRecurringRoot+":"+serviceOut.Data.ServiceID, string(b))
+	if err = catalog.SetKey(planetRecurringRoot+":"+serviceOut.Data.ServiceID, string(b)); err != nil {
+		return err
+	}
 	// TODO: drop these keys when we drop everything else
-	return err
-	// // Get the event type
-	// mapping := make(map[string]interface{})
-	// if eventType, err = pzsvc.GetEventType(planetRecurringRoot, mapping, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
-	// 	log.Printf("Failed to retrieve event type %v: %v", planetRecurringRoot, err.Error())
-	// 	return
-	// }
-	//
-	// // Is there an event?
-	// if events, err = pzsvc.Events(eventType.EventTypeID, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
-	// 	log.Printf("Failed to retrieve events for event type %v: %v", eventType.EventTypeID, err.Error())
-	// 	return
-	// }
-	// var foundEvent bool
-	// for _, event := range events {
-	// 	if event.CronSchedule == harvestCron {
-	// 		foundEvent = true
-	// 		break
-	// 	}
-	// }
-	// if !foundEvent {
-	// 	event = pzsvc.Event{CronSchedule: harvestCron,
-	// 		EventTypeID: eventType.EventTypeID,
-	// 		Data:        make(map[string]interface{})}
-	// 	if _, err = pzsvc.AddEvent(event, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
-	// 		log.Printf("Failed to add event for event type %v: %v", eventType.EventTypeID, err.Error())
-	// 		return
-	// 	}
-	// }
 
-	// Is there a trigger?
+	// Get the event type
+	mapping := make(map[string]interface{})
+	if eventType, err = pzsvc.GetEventType(planetRecurringRoot, mapping, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
+		return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to retrieve event type %v: %v", planetRecurringRoot, err.Error()))
+	}
+
+	// Is there an event?
+	if events, err = pzsvc.Events(eventType.EventTypeID, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
+		return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to retrieve events for event type %v: %v", eventType.EventTypeID, err.Error()))
+	}
+	for _, event := range events {
+		if event.CronSchedule == harvestCron {
+			matchingEvent = &event
+			break
+		}
+	}
+	if matchingEvent == nil {
+		event = pzsvc.Event{CronSchedule: harvestCron,
+			EventTypeID: eventType.EventTypeID,
+			Data:        make(map[string]interface{})}
+		if newEvent, err = pzsvc.AddEvent(event, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
+			return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to add event for event type %v: %v", eventType.EventTypeID, err.Error()))
+		}
+		matchingEvent = &newEvent
+	}
+	log.Printf("Event: %v", matchingEvent.EventID)
+
+	trigger.Name = "Beachfront Recurring Harvest"
+	trigger.EventTypeID = eventType.EventTypeID
+	trigger.Enabled = true
+	trigger.Job.JobType.Type = "execute-service"
+	trigger.Job.JobType.Data.ServiceID = serviceOut.Data.ServiceID
+	if triggerOut, err = pzsvc.AddTrigger(trigger, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
+		return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to add trigger %#v: %v", trigger, err.Error()))
+	}
+	log.Printf("Trigger: %v", triggerOut.Data.TriggerID)
+	return err
 }
 
 func recurringURL(requestURL *url.URL, piazzaGateway, key string) *url.URL {
