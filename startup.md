@@ -1,5 +1,5 @@
 # Startup procedures
-replace localhost:8080 to wherever this application is deployed (e.g., http://pz-gateway.int.geointservices.io/pzsvc-image-catalog)
+replace localhost:8080 to wherever this application is deployed (e.g., http://pzsvc-image-catalog.stage.geointservices.io/)
 
 ## Harvesting Planet Labs
 Call http://localhost:8080/planet with the following parameters:
@@ -15,17 +15,26 @@ Call http://localhost:8080/discover with one or more of the following:
 * acquiredDate (RFC 3339)
 * cloudCover (0 to 100)
 
-## Setting up recurring harvests
-TBD
-
 ## Subsequent harvests
 Use the same endpoint as the initial harvest
-* event=true (this causes the catalog to post a Piazza event each time a new scene is harvested. This is not recommended for the initial harvest, but may be done in subsequent harvests when the number of harvested scenes is lower)
+* event=true (optional) (this causes the catalog to post a Piazza event each time a new scene is harvested. This is not recommended for the initial harvest, but may be done in subsequent harvests when the number of harvested scenes is lower)
   
+## Setting up recurring harvests
+Call the harvest operation with one additional parameter:
+* recurring=true
+
+When this is done, the image catalog will set up the following:
+* service 
+* event type
+* event (with cron of something like every 24h)
+* trigger to call the service when the event fires
+
+When this is working right, the following will occur:
+* harvest operations kicked off in image catalog (see PCF logs for evidence)
+* events fired in Piazza (event name is something like `beachfront:harvest:new-image-harvested:0`) for each newly harvested scene 
+
 ## Finding the right Event Type ID
-There is no way to search events by Event Type Name at this time. You need to resolve to an Event Type ID. Once you get this ID, you can call the /event endpoint on the gateway.
+There is no way to search events by Event Type Name at this time. You need to resolve to an Event Type ID. Once you get this ID, you can call the `/event` endpoint on the gateway with `?eventTypeId=...`
 * Call http://localhost:8080/eventTypeID
 * pzGateway=http://pz-gateway.stage.geointservices.io
 
-## Setting up reccurring harvests
-TBD
