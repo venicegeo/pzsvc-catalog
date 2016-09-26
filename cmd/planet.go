@@ -82,7 +82,7 @@ func planetHandler(writer http.ResponseWriter, request *http.Request) {
 
 	if recurring {
 		writer.Write([]byte("Initializing recurring harvest.\n"))
-		if err = planetRecurring(request.URL, options); err != nil {
+		if err = planetRecurring(request.URL, request.Host, options); err != nil {
 			writer.Write([]byte("\n" + err.Error()))
 		}
 	}
@@ -263,7 +263,7 @@ func harvestPlanet(options HarvestOptions) {
 	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
 }
 
-func planetRecurring(requestURL *url.URL, options HarvestOptions) error {
+func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) error {
 	var (
 		events        []pzsvc.Event
 		eventType     pzsvc.EventType
@@ -278,7 +278,11 @@ func planetRecurring(requestURL *url.URL, options HarvestOptions) error {
 		err           error
 	)
 	// Register the service
-	serviceIn.URL = recurringURL(requestURL, options.PiazzaGateway, "").String()
+	serviceIn.URL = recurringURL(requestURL, host, options.PiazzaGateway, "").String()
+	log.Print(serviceIn.URL)
+	if true {
+		return nil
+	}
 	serviceIn.ContractURL = "whatever"
 	serviceIn.Method = "POST"
 	b, _ = json.Marshal(serviceIn)
@@ -287,7 +291,7 @@ func planetRecurring(requestURL *url.URL, options HarvestOptions) error {
 	}
 
 	// Update the service with the service ID now that we have it so we can tell ourselves what it is later. Got it?
-	serviceIn.URL = recurringURL(requestURL, options.PiazzaGateway, serviceOut.Data.ServiceID).String()
+	serviceIn.URL = recurringURL(requestURL, host, options.PiazzaGateway, serviceOut.Data.ServiceID).String()
 	b, _ = json.Marshal(serviceIn)
 	if _, err = pzsvc.RequestKnownJSON("PUT", string(b), options.PiazzaGateway+"/service/"+serviceOut.Data.ServiceID, options.PiazzaAuthorization, &serviceOut); err != nil {
 		return err
@@ -339,8 +343,14 @@ func planetRecurring(requestURL *url.URL, options HarvestOptions) error {
 	return err
 }
 
-func recurringURL(requestURL *url.URL, piazzaGateway, key string) *url.URL {
-	result, _ := url.Parse(requestURL.String())
+func recurringURL(requestURL *url.URL, host, piazzaGateway, key string) *url.URL {
+	var (
+		result *url.URL
+		err    error
+	)
+	if result, err = url.Parse("https://" + host + requestURL.String()); err != nil {
+		log.Print(pzsvc.TraceErr(err).Error())
+	}
 	query := make(url.Values)
 	query.Add("event", "true")
 	query.Add("pzGateway", result.Query().Get("pzGateway"))
