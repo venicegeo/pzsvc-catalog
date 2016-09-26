@@ -7,6 +7,7 @@ Call http://localhost:8080/planet with the following parameters:
 * PL_API_KEY=...
 * pzGateway=http://pz-gateway.stage.geointservices.io
 * Provide auth information for the Piazza Gateway in the header - you must authenticate for this process to work.
+* event=true - only recommended for subsequent harvests (to support product lines). Don't use this flag for initial harvests because it will create hundreds of thousands of unnecessary events
 
 ## Testing Discovery
 Call http://localhost:8080/discover with one or more of the following:
@@ -26,3 +27,5 @@ There is no way to search events by Event Type Name at this time. You need to re
 * Call http://localhost:8080/eventTypeID
 * pzGateway=http://pz-gateway.stage.geointservices.io
 
+## Setting up reccurring harvests
+TBD
