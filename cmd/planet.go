@@ -280,9 +280,6 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 	// Register the service
 	serviceIn.URL = recurringURL(requestURL, host, options.PiazzaGateway, "").String()
 	log.Print(serviceIn.URL)
-	if true {
-		return nil
-	}
 	serviceIn.ContractURL = "whatever"
 	serviceIn.Method = "POST"
 	b, _ = json.Marshal(serviceIn)
