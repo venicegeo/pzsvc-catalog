@@ -292,7 +292,6 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 	)
 	// Register the service
 	serviceIn.URL = recurringURL(requestURL, host, options.PiazzaGateway, "").String()
-	log.Print(serviceIn.URL)
 	serviceIn.ContractURL = "whatever"
 	serviceIn.Method = "POST"
 	b, _ = json.Marshal(serviceIn)
@@ -302,6 +301,7 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 
 	// Update the service with the service ID now that we have it so we can tell ourselves what it is later. Got it?
 	serviceIn.URL = recurringURL(requestURL, host, options.PiazzaGateway, serviceOut.Data.ServiceID).String()
+	log.Print(serviceIn.URL)
 	b, _ = json.Marshal(serviceIn)
 	if _, err = pzsvc.RequestKnownJSON("PUT", string(b), options.PiazzaGateway+"/service/"+serviceOut.Data.ServiceID, options.PiazzaAuthorization, &serviceOut); err != nil {
 		return err
@@ -327,6 +327,7 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 	for _, event := range events {
 		if event.CronSchedule == harvestCron {
 			matchingEvent = &event
+			log.Printf("found event %#v", event)
 			break
 		}
 	}
@@ -346,6 +347,8 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 	trigger.Enabled = true
 	trigger.Job.JobType.Type = "execute-service"
 	trigger.Job.JobType.Data.ServiceID = serviceOut.Data.ServiceID
+	trigger.Job.JobType.Data.DataOutput = append(trigger.Job.JobType.Data.DataOutput, pzsvc.DataType{MimeType: "text/plain", Type: "text"})
+
 	if triggerOut, err = pzsvc.AddTrigger(trigger, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
 		return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to add trigger %#v: %v", trigger, err.Error()))
 	}
