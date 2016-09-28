@@ -265,9 +265,7 @@ This function will harvest metadata from Planet Labs, using the PL_API_KEY in th
 	},
 }
 
-const harvestCron = "@every 1m"
-
-// const harvestCron = "@every 24h"
+const harvestCron = "@every 24h"
 
 func harvestPlanet(options HarvestOptions) {
 	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
@@ -307,7 +305,6 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 	if _, err = pzsvc.RequestKnownJSON("PUT", string(b), options.PiazzaGateway+"/service/"+serviceOut.Data.ServiceID, options.PiazzaAuthorization, &serviceOut); err != nil {
 		return err
 	}
-	log.Printf("%#v", serviceOut)
 
 	b, _ = json.Marshal(options)
 	if err = catalog.SetKey(planetRecurringRoot+":"+serviceOut.Data.ServiceID, string(b)); err != nil {
@@ -339,7 +336,6 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 			return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to add event for event type %v: %v", eventType.EventTypeID, err.Error()))
 		}
 		newEvent = eventResponse.Data
-		log.Printf("created new event %#v", newEvent)
 		matchingEvent = &newEvent
 	}
 	log.Printf("Event: %v", matchingEvent.EventID)
