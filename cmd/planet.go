@@ -281,6 +281,7 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 		events        []pzsvc.Event
 		eventType     pzsvc.EventType
 		event         pzsvc.Event
+		eventResponse pzsvc.EventResponse
 		matchingEvent *pzsvc.Event
 		newEvent      pzsvc.Event
 		serviceIn     pzsvc.Service
@@ -334,9 +335,10 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 		event = pzsvc.Event{CronSchedule: harvestCron,
 			EventTypeID: eventType.EventTypeID,
 			Data:        make(map[string]interface{})}
-		if newEvent, err = pzsvc.AddEvent(event, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
+		if eventResponse, err = pzsvc.AddEvent(event, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
 			return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to add event for event type %v: %v", eventType.EventTypeID, err.Error()))
 		}
+		newEvent = eventResponse.Data
 		log.Printf("created new event %#v", newEvent)
 		matchingEvent = &newEvent
 	}
