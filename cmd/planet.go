@@ -350,7 +350,7 @@ func planetRecurring(requestURL *url.URL, host string, options HarvestOptions) e
 	trigger.Job.JobType.Type = "execute-service"
 	trigger.Job.JobType.Data.ServiceID = serviceOut.Data.ServiceID
 	trigger.Job.JobType.Data.DataInputs = make(map[string]pzsvc.DataType)
-	trigger.Job.JobType.Data.DataInputs["foo"] = "string"
+	trigger.Job.JobType.Data.DataInputs["foo"] = pzsvc.DataType{MimeType: "text/plain", Type: "text"}
 	trigger.Job.JobType.Data.DataOutput = append(trigger.Job.JobType.Data.DataOutput, pzsvc.DataType{MimeType: "text/plain", Type: "text"})
 
 	if triggerOut, err = pzsvc.AddTrigger(trigger, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
