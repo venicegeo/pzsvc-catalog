@@ -207,7 +207,7 @@ func getResults(input *geojson.Feature, options SearchOptions) (SceneDescriptors
 		}
 	}
 
-	if subIndex := input.PropertyString("subindex"); subIndex == "" {
+	if subIndex := input.PropertyString("subIndex"); subIndex == "" {
 		indexName = imageCatalogPrefix
 	} else {
 		indexName = subIndex
@@ -215,6 +215,7 @@ func getResults(input *geojson.Feature, options SearchOptions) (SceneDescriptors
 
 	if acquiredDate.IsZero() && maxAcquiredDate.IsZero() {
 		// Create the cache using a full table scan
+		log.Printf("Starting search on %v with no dates", indexName)
 		if members = red.ZRange(indexName, 0, -1); members.Err() != nil {
 			return result, "", pzsvc.TraceErr(members.Err())
 		}
@@ -608,31 +609,6 @@ func ImageIOReader(id, band, key string) (io.Reader, error) {
 	}
 	return ImageFeatureIOReader(feature, band, key)
 }
-
-// // SetRecurrence sets a key so that a daemon can determine
-// // whether to rerun a harvesting operation
-// // A blank value means "off"
-// func SetRecurrence(domain string, flag bool, value string) {
-// 	red, _ := RedisClient()
-// 	key := imageCatalogPrefix + ":" + domain + ":recur"
-// 	if flag {
-// 		red.Set(key, value, 0)
-// 	} else {
-// 		red.Del(key)
-// 	}
-// }
-//
-// // Recurrence returns the recurrence flag for the specified domain
-// // A blank response indicates unset
-// func Recurrence(domain string) string {
-// 	red, _ := RedisClient()
-// 	key := imageCatalogPrefix + ":" + domain + ":recur"
-// 	if bc := red.Exists(key); bc.Err() == nil && bc.Val() {
-// 		sc := red.Get(key)
-// 		return sc.Val()
-// 	}
-// 	return ""
-// }
 
 // ImageFeatureIOReader returns an io Reader for the requested band
 func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io.Reader, error) {
