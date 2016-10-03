@@ -265,8 +265,6 @@ This function will harvest metadata from Planet Labs, using the PL_API_KEY in th
 	},
 }
 
-const harvestCron = "@every 24h"
-
 func harvestPlanet(options HarvestOptions) {
 	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
 	options.callback = storePlanetLandsat

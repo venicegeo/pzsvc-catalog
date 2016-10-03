@@ -27,6 +27,8 @@ import (
 
 type harvestCallback func(*geojson.FeatureCollection, HarvestOptions) error
 
+const harvestCron = "@every 1h"
+
 const harvestEventTypeRoot = "beachfront:harvest:new-image-harvested"
 
 var (
@@ -65,8 +67,6 @@ func harvestEventTypeMapping() map[string]interface{} {
 	}
 	return harvestETMapping
 }
-
-var didOnce bool
 
 func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(error)) error {
 	event := pzsvc.Event{
