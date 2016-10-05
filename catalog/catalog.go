@@ -520,11 +520,13 @@ func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
 		return "", err
 	}
 
-	// Unless this flag is set, we don't want to reharvest things we already have
-	if !reharvest {
-		boolCmd := red.Exists(key)
-		if boolCmd.Val() {
-			return "", fmt.Errorf("Record %v already exists.", key)
+	if red.Exists(key).Val() {
+		message := fmt.Sprintf("Record %v already exists.", key)
+		// Unless this flag is set, we don't want to reharvest things we already have
+		if reharvest {
+			fmt.Print(message + " Reharvesting.")
+		} else {
+			return "", pzsvc.ErrWithTrace(message)
 		}
 	}
 
@@ -601,7 +603,11 @@ func calculateScore(feature *geojson.Feature) float64 {
 // DropIndex drops the main index containing all known catalog entries,
 // deletes the underlying entries, and returns the number of images
 func DropIndex() int {
-	var count int
+	var (
+		count int
+		key   string
+	)
+
 	red, _ := RedisClient()
 	transaction := red.Multi()
 	defer transaction.Close()
@@ -612,12 +618,14 @@ func DropIndex() int {
 			transaction.Del(curr)
 		}
 	}
-	if results := transaction.SMembers(imageCatalogPrefix + "-caches"); results.Err() == nil {
+	key = imageCatalogPrefix + "-caches"
+	if results := transaction.SMembers(key); results.Err() == nil {
 		count += len(results.Val())
 		fmt.Printf("Dropping %v caches.", len(results.Val()))
 		for _, curr := range results.Val() {
 			transaction.Del(curr)
 		}
+		transaction.Del(key)
 	}
 	transaction.Del(imageCatalogPrefix)
 	return count
@@ -652,7 +660,7 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 				// This now works for PlanetLabs and Landsat.
 				// Others will require additional code.
 				if strings.HasPrefix(feature.ID, "pl:") {
-					if response, err = DoPlanetRequest("GET", urlString, key); err != nil {
+					if response, err = doPlanetRequest("GET", urlString, key); err != nil {
 						return nil, err
 					}
 				} else {
@@ -672,18 +680,4 @@ func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io
 		return result, nil
 	}
 	return nil, fmt.Errorf("Requested band \"%v\" not found in image %v.", band, feature.ID)
-}
-
-// SetKey shouldn't exist. It is a hack
-func SetKey(key, value string) error {
-	red, _ := RedisClient()
-	sc := red.Set(key, value, 0)
-	return sc.Err()
-}
-
-// GetKey shouldn't exist. It is a hack
-func GetKey(key string) (string, error) {
-	red, _ := RedisClient()
-	sc := red.Get(key)
-	return sc.Val(), sc.Err()
 }

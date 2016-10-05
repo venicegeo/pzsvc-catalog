@@ -80,11 +80,6 @@ func TestBeachfront(t *testing.T) {
 	if len(scenes2.Scenes.Features) < 1 {
 		t.Error("Where are the images?")
 	}
-	// for _, curr := range scenes.Scenes.Features {
-	// 	t.Logf("%v", curr)
-	// }
-	// DropIndex()
-	// rc.Del(prefix)
 }
 
 func TestDropIndex(t *testing.T) {

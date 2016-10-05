@@ -101,3 +101,17 @@ func (services VcapServices) RedisOptions() *redis.Options {
 	fmt.Printf("Interpreted Redis options as: %#v", result)
 	return &result
 }
+
+// SetKey shouldn't exist. It is a hack to provide convenient persistence.
+func SetKey(key, value string) error {
+	red, _ := RedisClient()
+	sc := red.Set(key, value, 0)
+	return sc.Err()
+}
+
+// GetKey shouldn't exist. It is a hack to provide convenient persistence.
+func GetKey(key string) (string, error) {
+	red, _ := RedisClient()
+	sc := red.Get(key)
+	return sc.Val(), sc.Err()
+}

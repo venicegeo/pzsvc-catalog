@@ -33,15 +33,22 @@ const baseURLString = "https://api.planet.com/"
 
 // HarvestPlanet harvests Planet Labs
 func HarvestPlanet(options HarvestOptions) {
+	var (
+		err error
+	)
 	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
 	options.callback = storePlanetLandsat
-	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", options)
+	if err = options.Filter.PrepareGeometries(); err == nil {
+		harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", options)
+	} else {
+		log.Printf("Failed to prepare geometries for harvesting filter: %v", err.Error())
+	}
 	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
 }
 
-// DoPlanetRequest performs the request
+// doPlanetRequest performs the request
 // URL may be relative or absolute based on baseURLString
-func DoPlanetRequest(method, inputURL, key string) (*http.Response, error) {
+func doPlanetRequest(method, inputURL, key string) (*http.Response, error) {
 	var (
 		request   *http.Request
 		parsedURL *url.URL
@@ -119,95 +126,62 @@ type PlanetLinks struct {
 }
 
 func harvestPlanetEndpoint(endpoint string, options HarvestOptions) {
-	var err error
+	var (
+		err   error
+		count int
+		curr  int
+	)
 	for err == nil && (endpoint != "") {
 		var (
 			next        string
 			responseURL *url.URL
 		)
-		next, err = harvestPlanetOperation(endpoint, options)
+		next, curr, err = harvestPlanetOperation(endpoint, options)
+		count += curr
 		if (len(next) == 0) || (err != nil) {
 			break
 		}
 		responseURL, err = url.Parse(next)
 		endpoint = responseURL.RequestURI()
-		if options.Cap {
+		if (options.Cap > 0) && (count >= options.Cap) {
 			break
 		}
 	}
 	if err != nil {
 		log.Print(err.Error())
 	}
-	log.Printf("Harvested %v images.", IndexSize())
+	log.Printf("Harvested %v scenes for a total size of %v.", count, IndexSize())
 }
 
-func harvestPlanetOperation(endpoint string, options HarvestOptions) (string, error) {
-	log.Printf("Harvesting %v", endpoint)
+func harvestPlanetOperation(endpoint string, options HarvestOptions) (string, int, error) {
+	fmt.Printf("Harvesting %v\n", endpoint)
 	var (
 		response       *http.Response
 		fc             *geojson.FeatureCollection
 		planetResponse PlanetResponse
 		err            error
+		count          int
 	)
-	if response, err = DoPlanetRequest("GET", endpoint, options.PlanetKey); err != nil {
-		return "", err
+	if response, err = doPlanetRequest("GET", endpoint, options.PlanetKey); err != nil {
+		return "", 0, err
 	}
 
 	if planetResponse, fc, err = unmarshalPlanetResponse(response); err != nil {
-		return "", err
+		return "", 0, err
 	}
-	if err = options.callback(fc, options); err == nil {
-		err = harvestSanityCheck()
-	}
-
-	return planetResponse.Links.Next, err
+	count, err = options.callback(fc, options)
+	return planetResponse.Links.Next, count, err
 }
 
-func harvestSanityCheck() error {
-	// if catalog.IndexSize() > 100000 {
-	// 	return errors.New("Okay, we're big enough.")
-	// }
-	return nil
-}
-
-// var usBoundary *geojson.FeatureCollection
-//
-// func getUSBoundary() *geojson.FeatureCollection {
-// 	var (
-// 		gj  interface{}
-// 		err error
-// 	)
-// 	if usBoundary == nil {
-// 		if gj, err = geojson.ParseFile("data/Black_list_AOIs.geojson"); err != nil {
-// 			log.Printf("Parse error: %v\n", err.Error())
-// 			return nil
-// 		}
-// 		usBoundary = gj.(*geojson.FeatureCollection)
-// 	}
-// 	return usBoundary
-// }
-//
-// func whiteList(feature *geojson.Feature) bool {
-// 	bbox := feature.ForceBbox()
-// 	fc := getUSBoundary()
-// 	if fc != nil {
-// 		for _, curr := range fc.Features {
-// 			if bbox.Overlaps(curr.ForceBbox()) {
-// 				return false
-// 			}
-// 		}
-// 	}
-// 	return true
-// }
-
-func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) error {
+func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) (int, error) {
 	var (
-		err error
+		count int
+		err   error
 	)
 	for _, curr := range fc.Features {
-		// if !whiteList(curr) {
-		// 	continue
-		// }
+		if !passHarvestFilter(options, curr) {
+			continue
+		}
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
 		id := curr.ID
@@ -236,9 +210,10 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) e
 		feature := geojson.NewFeature(curr.Geometry, "landsat:"+id, properties)
 		feature.Bbox = curr.ForceBbox()
 		if _, err = StoreFeature(feature, options.Reharvest); err != nil {
-			log.Print(err.Error())
+			pzsvc.TraceErr(err)
 			break
 		}
+		count++
 		if options.Event {
 			cb := func(err error) {
 				log.Printf("Failed to issue event for %v: %v", id, err.Error())
@@ -246,7 +221,7 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) e
 			go issueEvent(options, feature, cb)
 		}
 	}
-	return err
+	return count, err
 }
 
 func landsatIDToS3Path(id string) string {

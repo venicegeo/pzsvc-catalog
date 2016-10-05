@@ -15,13 +15,17 @@
 package catalog
 
 import (
+	"fmt"
+	"log"
 	"os"
 
+	"github.com/paulsmith/gogeos/geos"
+	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
-type harvestCallback func(*geojson.FeatureCollection, HarvestOptions) error
+type harvestCallback func(*geojson.FeatureCollection, HarvestOptions) (int, error)
 
 const harvestCron = "@every 1h"
 
@@ -41,7 +45,7 @@ type HarvestOptions struct {
 	PiazzaGateway       string        `json:"pzGateway"`
 	PiazzaAuthorization string        `json:"pzAuth"`
 	Filter              HarvestFilter `json:"filter"`
-	Cap                 bool          `json:"cap"`
+	Cap                 int           `json:"cap"`
 	OptionsKey          string        `json:"optionsString,omitempty"`
 	callback            harvestCallback
 	EventTypeID         string
@@ -55,10 +59,10 @@ type HarvestFilter struct {
 
 // FeatureLayer describes features
 type FeatureLayer struct {
-	WfsURL      string `json:"wfsurl"`
-	FeatureType string `json:"featureType"`
-	Geometry    interface{}
-	GeoJSON     interface{} `json:"geojson"`
+	WfsURL      string                 `json:"wfsurl"`
+	FeatureType string                 `json:"featureType"`
+	GeoJSON     map[string]interface{} `json:"geojson"`
+	Geos        *geos.Geometry
 }
 
 func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(error)) error {
@@ -81,4 +85,47 @@ func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(
 		callback(err)
 	}
 	return err
+}
+
+// PrepareGeometries establishes Geos geometries for later processing,
+// Returning an error on failure
+func (hf *HarvestFilter) PrepareGeometries() error {
+	var (
+		err error
+	)
+
+	if hf.WhiteList.GeoJSON != nil {
+		if hf.WhiteList.Geos, err = geojsongeos.GeosFromGeoJSON(geojson.FeatureCollectionFromMap(hf.WhiteList.GeoJSON)); err != nil {
+			return pzsvc.ErrWithTrace(fmt.Sprintf("Whitelist filter geometry cannot be parsed. %v", err.Error()))
+		}
+	}
+	if hf.BlackList.GeoJSON != nil {
+		if hf.BlackList.Geos, err = geojsongeos.GeosFromGeoJSON(geojson.FeatureCollectionFromMap(hf.BlackList.GeoJSON)); err != nil {
+			return pzsvc.ErrWithTrace(fmt.Sprintf("Blacklist filter geometry cannot be parsed. %v", err.Error()))
+		}
+	}
+	return err
+}
+
+func passHarvestFilter(options HarvestOptions, feature *geojson.Feature) bool {
+	var (
+		harvestGeom *geos.Geometry
+		err         error
+		disjoint    bool
+	)
+	if harvestGeom, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
+		log.Printf("Harvest geometry cannot be parsed. Dropping from harvest. %v", err.Error())
+		return false
+	}
+	if options.Filter.WhiteList.Geos != nil {
+		if disjoint, err = harvestGeom.Disjoint(options.Filter.WhiteList.Geos); err != nil || disjoint {
+			return false
+		}
+	}
+	if options.Filter.BlackList.Geos != nil {
+		if disjoint, err = harvestGeom.Disjoint(options.Filter.BlackList.Geos); err != nil || !disjoint {
+			return false
+		}
+	}
+	return true
 }
