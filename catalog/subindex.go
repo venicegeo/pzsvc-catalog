@@ -64,17 +64,6 @@ func Subindexes() map[string]Subindex {
 	return subindexMap
 }
 
-// // SetSubindex sets a filter geometry for an index
-// func SetSubindex(key string, geometries map[string]*geos.Geometry) {
-// 	// func SetSubIndex(name string, geometries map[string]*geos.PGeometry) {
-// 	if subindexMap == nil {
-// 		subindexMap = make(map[string]map[string]*geos.Geometry)
-// 		// subindexMap = make(map[string]map[string]*geos.PGeometry)
-// 	}
-// 	subindexMap[key] = geometries
-// 	registerCache(key)
-// }
-
 // CacheSubindex populates a sub-index for later use
 func CacheSubindex(subindex Subindex) int64 {
 	var (

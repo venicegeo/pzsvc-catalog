@@ -46,10 +46,12 @@ func serve() {
 		router.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 			fmt.Fprintf(writer, "Hi")
 		})
+		router.HandleFunc("/dropIndex", dropIndexHandler)
 		router.HandleFunc("/eventTypeID", eventTypeIDHandler)
 		router.HandleFunc("/image/{id}", imageHandler)
 		router.HandleFunc("/discover", discoverHandler)
 		router.HandleFunc("/planet", planetHandler)
+		router.HandleFunc("/planetRecurring", planetRecurringHandler)
 		router.HandleFunc("/unharvest", unharvestHandler)
 		router.HandleFunc("/subindex", subindexHandler)
 		router.HandleFunc("/provision/{id}/{band}", provisionHandler)
@@ -68,9 +70,27 @@ func serve() {
 		})
 	}
 
-	// go recurrentHandling()
-	//
 	log.Fatal(http.ListenAndServe(portStr, nil))
+}
+
+func dropIndexHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		err       error
+		pzGateway string
+		pzAuth    string
+	)
+	pzGateway = r.FormValue("pzGateway")
+	pzAuth = r.Header.Get("Authorization")
+	if err = pzsvc.TestPiazzaAuth(pzGateway, pzAuth); err != nil {
+		if httpError, ok := err.(*pzsvc.HTTPError); ok {
+			http.Error(w, httpError.Message, httpError.Status)
+		} else {
+			http.Error(w, "Unable to attempt authentication: "+err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	response := catalog.DropIndex()
+	w.Write([]byte(fmt.Sprintf("Dropped existing index, deleted %v entries.\n", response)))
 }
 
 func imageHandler(writer http.ResponseWriter, request *http.Request) {
@@ -108,10 +128,4 @@ Serve the image catalog`,
 	Run: func(cmd *cobra.Command, args []string) {
 		serve()
 	},
-}
-
-func testPiazzaAuth(pzGateway, auth string) error {
-
-	_, err := pzsvc.SubmitSinglePart("GET", "", pzGateway+"/eventType", auth)
-	return err
 }

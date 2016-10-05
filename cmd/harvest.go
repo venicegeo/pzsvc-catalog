@@ -25,8 +25,6 @@ import (
 	"github.com/venicegeo/pzsvc-lib"
 )
 
-type harvestCallback func(*geojson.FeatureCollection, HarvestOptions) error
-
 const harvestCron = "@every 1h"
 
 const harvestEventTypeRoot = "beachfront:harvest:new-image-harvested"
@@ -36,18 +34,6 @@ var (
 
 	harvestEventTypeID string
 )
-
-// HarvestOptions are options for a harvesting operation
-type HarvestOptions struct {
-	Event               bool   `json:"event,omitempty"`
-	Reharvest           bool   `json:"reharvest,omitempty"`
-	PlanetKey           string `json:"PL_API_KEY"`
-	PiazzaGateway       string `json:"pzGateway"`
-	PiazzaAuthorization string `json:"pzAuth"`
-	callback            harvestCallback
-	EventID             string
-	Cap                 bool `json:"cap"`
-}
 
 var harvestETMapping map[string]interface{}
 
@@ -68,27 +54,6 @@ func harvestEventTypeMapping() map[string]interface{} {
 	return harvestETMapping
 }
 
-func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(error)) error {
-	event := pzsvc.Event{
-		EventTypeID: options.EventID,
-		Data:        make(map[string]interface{})}
-	event.Data["imageID"] = feature.ID
-	event.Data["minx"] = feature.ForceBbox()[0]
-	event.Data["miny"] = feature.ForceBbox()[1]
-	event.Data["maxx"] = feature.ForceBbox()[2]
-	event.Data["maxy"] = feature.ForceBbox()[3]
-	event.Data["acquiredDate"] = feature.PropertyString("acquiredDate")
-	event.Data["sensorName"] = feature.PropertyString("sensorName")
-	event.Data["link"] = feature.PropertyString("path")
-	event.Data["resolution"] = feature.PropertyFloat("resolution")
-	event.Data["cloudCover"] = feature.PropertyFloat("cloudCover")
-
-	_, err := pzsvc.AddEvent(event, options.PiazzaGateway, options.PiazzaAuthorization)
-	if callback != nil {
-		callback(err)
-	}
-	return err
-}
 func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 	var (
 		err       error
@@ -109,7 +74,7 @@ func eventTypeIDHandler(writer http.ResponseWriter, request *http.Request) {
 		http.Error(writer, "401 Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if err = testPiazzaAuth(pzGateway, pzAuth); err != nil {
+	if err = pzsvc.TestPiazzaAuth(pzGateway, pzAuth); err != nil {
 		if httpError, ok := err.(*pzsvc.HTTPError); ok {
 			http.Error(writer, httpError.Message, httpError.Status)
 		} else {
@@ -139,7 +104,7 @@ func unharvestHandler(writer http.ResponseWriter, request *http.Request) {
 
 	pzGateway := request.FormValue("pzGateway")
 	pzAuth := request.Header.Get("Authorization")
-	if err = testPiazzaAuth(pzGateway, pzAuth); err != nil {
+	if err = pzsvc.TestPiazzaAuth(pzGateway, pzAuth); err != nil {
 		if httpError, ok := err.(*pzsvc.HTTPError); ok {
 			http.Error(writer, httpError.Message, httpError.Status)
 		} else {

@@ -32,7 +32,7 @@ func TestPlanet(t *testing.T) {
 	if response, err = DoPlanetRequest("GET", "v0/scenes/ortho/", ""); err != nil {
 		t.Error(err)
 	}
-	if planetResponse, fc, err = UnmarshalPlanetResponse(response); err != nil {
+	if planetResponse, fc, err = unmarshalPlanetResponse(response); err != nil {
 		t.Error(err)
 	}
 

@@ -78,11 +78,12 @@ func GetScenes(input *geojson.Feature, options SearchOptions) (SceneDescriptors,
 		resultText string
 		fc         *geojson.FeatureCollection
 		features   []*geojson.Feature
-		zrbs       redis.ZRangeByScore
 		ssc        *redis.StringSliceCmd
 		sc         *redis.StringCmd
 	)
-
+	if input == nil {
+		return result, "", pzsvc.ErrWithTrace("Input feature must not be nil.")
+	}
 	if options.NoCache {
 		return getResults(input, options)
 	}
@@ -92,7 +93,7 @@ func GetScenes(input *geojson.Feature, options SearchOptions) (SceneDescriptors,
 	cacheName := getDiscoverCacheName(input)
 
 	// If the cache does not exist, create it asynchronously
-	if cacheExists := client.Exists(cacheName); cacheExists.Err() == nil {
+	if cacheExists := red.Exists(cacheName); cacheExists.Err() == nil {
 		if !cacheExists.Val() {
 			go populateCache(input, cacheName)
 		}
@@ -104,27 +105,7 @@ func GetScenes(input *geojson.Feature, options SearchOptions) (SceneDescriptors,
 	// See if we can complete the requested query
 	complete := false
 	for !complete {
-		cardCmd := red.ZCard(cacheName)
-		card := int(cardCmd.Val())
-		result.TotalCount = card - 1 // ignore terminal element
-		if cardCmd.Err() != nil {
-			RedisError(red, cardCmd.Err())
-			return result, "", cardCmd.Err()
-			// See we have enough results already
-		} else if card > options.MaximumIndex {
-			complete = true
-			// See if the terminal object has been added
-		} else {
-			zrbs.Min = "0.5"
-			zrbs.Max = "1.5"
-			ssc = red.ZRangeByScore(cacheName, zrbs)
-			if ssc.Err() != nil {
-				RedisError(red, ssc.Err())
-				return result, "", ssc.Err()
-			} else if len(ssc.Val()) > 0 {
-				complete = true
-			}
-		}
+		complete = completeCache(cacheName, options)
 		if !complete {
 			time.Sleep(100 * time.Millisecond)
 		}
@@ -174,6 +155,34 @@ func getDiscoverCacheName(input *geojson.Feature) string {
 	bytes, _ := json.Marshal(input)
 	// TODO: we may wish to hash this index name
 	return imageCatalogPrefix + string(bytes)
+}
+
+func completeCache(cacheName string, options SearchOptions) bool {
+	complete := false
+	red, _ := RedisClient()
+	cardCmd := red.ZCard(cacheName)
+	card := int(cardCmd.Val())
+	totalCount := card - 1 // ignore terminal element
+	if cardCmd.Err() != nil {
+		RedisError(red, cardCmd.Err())
+		complete = true
+		// See we have enough results already
+	} else if totalCount > options.MaximumIndex {
+		complete = true
+		// See if the terminal object has been added
+	} else {
+		var zrbs redis.ZRangeByScore
+		zrbs.Min = "0.5"
+		zrbs.Max = "1.5"
+		ssc := red.ZRangeByScore(cacheName, zrbs)
+		if ssc.Err() != nil {
+			RedisError(red, ssc.Err())
+			complete = true
+		} else if len(ssc.Val()) > 0 {
+			complete = true
+		}
+	}
+	return complete
 }
 
 // getResults returns the results of the requested query without the caching mechanism
@@ -369,6 +378,9 @@ func populateCache(input *geojson.Feature, cacheName string) {
 
 // This pass function gets called before retrieving and unmarshaling the value
 func passImageDescriptorKey(key string, test *geojson.Feature) bool {
+	var (
+		idCloudCover = 1.0
+	)
 	if test == nil {
 		return true
 	}
@@ -381,22 +393,25 @@ func passImageDescriptorKey(key string, test *geojson.Feature) bool {
 		)
 		part := keyParts[1]
 		keyParts = strings.Split(part, ",")
-		idCloudCover, _ := strconv.ParseFloat(keyParts[4], 64) // The 4th "value" is actually cloudCover
-		if bbox, err = geojson.NewBoundingBox(keyParts[0:4]); err != nil {
-			log.Printf("Expected a valid bounding box but received %v instead", err.Error())
-			return false
+		if len(keyParts) > 4 {
+			idCloudCover, _ = strconv.ParseFloat(keyParts[4], 64) // The 4th "value" is actually cloudCover
+			testCloudCover := test.PropertyFloat("cloudCover")
+			if !math.IsNaN(testCloudCover) && !math.IsNaN(idCloudCover) {
+				if idCloudCover > testCloudCover {
+					return false
+				}
+			}
 		}
-		testCloudCover := test.PropertyFloat("cloudCover")
-		if !math.IsNaN(testCloudCover) && !math.IsNaN(idCloudCover) {
-			if idCloudCover > testCloudCover {
+		if len(keyParts) >= 4 {
+			if bbox, err = geojson.NewBoundingBox(keyParts[0:4]); err != nil {
+				log.Printf("Expected a valid bounding box but received %v instead", err.Error())
+				return false
+			}
+
+			if (len(test.Bbox) > 0) && !test.Bbox.Overlaps(bbox) {
 				return false
 			}
 		}
-
-		if (len(test.Bbox) > 0) && !test.Bbox.Overlaps(bbox) {
-			return false
-		}
-
 	}
 	return true
 }
@@ -495,9 +510,15 @@ func featureKey(feature *geojson.Feature) string {
 // StoreFeature stores a feature into the catalog
 // using a key based on the feature's ID
 func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
+	var (
+		err error
+		b   []byte
+	)
 	red, _ := RedisClient()
 	key := featureKey(feature)
-	bytes, _ := json.Marshal(feature)
+	if b, err = geojson.Write(feature); err != nil {
+		return "", err
+	}
 
 	// Unless this flag is set, we don't want to reharvest things we already have
 	if !reharvest {
@@ -507,7 +528,7 @@ func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
 		}
 	}
 
-	red.Set(key, string(bytes), 0)
+	red.Set(key, string(b), 0)
 	z := redis.Z{Score: calculateScore(feature), Member: key}
 	red.ZAdd(imageCatalogPrefix, z)
 
@@ -577,25 +598,29 @@ func calculateScore(feature *geojson.Feature) float64 {
 	return score
 }
 
-// DropIndex drops the main index containing all known catalog entries
-// and deletes the underlying entries
-func DropIndex() {
+// DropIndex drops the main index containing all known catalog entries,
+// deletes the underlying entries, and returns the number of images
+func DropIndex() int {
+	var count int
 	red, _ := RedisClient()
 	transaction := red.Multi()
 	defer transaction.Close()
 	if results := transaction.ZRange(imageCatalogPrefix, 0, -1); results.Err() == nil {
-		log.Printf("Dropping %v keys.", len(results.Val()))
+		count = len(results.Val())
+		fmt.Printf("Dropping %v keys.", len(results.Val()))
 		for _, curr := range results.Val() {
 			transaction.Del(curr)
 		}
 	}
 	if results := transaction.SMembers(imageCatalogPrefix + "-caches"); results.Err() == nil {
-		log.Printf("Dropping %v caches.", len(results.Val()))
+		count += len(results.Val())
+		fmt.Printf("Dropping %v caches.", len(results.Val()))
 		for _, curr := range results.Val() {
 			transaction.Del(curr)
 		}
 	}
 	transaction.Del(imageCatalogPrefix)
+	return count
 }
 
 // ImageIOReader returns an io Reader for the requested band
