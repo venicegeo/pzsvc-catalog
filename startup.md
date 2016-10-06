@@ -19,7 +19,7 @@ PUSH http://localhost:8080/planet with the following parameters:
 ### Filter Descriptors
 * geojson=a valid GeoJSON block
 
-*OR*
+*OR* (this is not implemented yet)
 
 * wfsurl = something like `http://gsn-geose-loadbala-17usyyb36bfdl-1788485819.us-east-1.elb.amazonaws.com/geoserver/piazza/wfs`
 * featureType: the name of the WFS layer, something like `46a50997-709e-40f7-9abc-9438da773a72` 
@@ -28,7 +28,7 @@ PUSH http://localhost:8080/planet with the following parameters:
 ```
 {  
    "pzGateway":"http://piazza.stage.geointservices.io",
-   "PL_API_KEY":"e6b949967e434ed9a3c11449614eb546",
+   "PL_API_KEY":...,
    "cap":10000,
    "reharvest":true,
    "filter":{  
