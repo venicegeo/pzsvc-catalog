@@ -1,0 +1,14 @@
+{  
+   "pzGateway":"http://piazza.stage.geointservices.io",
+   "reharvest":true,
+   "filter":{  
+      "blacklist":{  
+        "wfsurl":"http://gsp-geose-LoadBala-4EP8UFUE9SXL-919040015.us-east-1.elb.amazonaws.com:80/geoserver/piazza/wfs",
+        "featureType":"8e31e022-4e1f-4a32-b341-4eb019ab45bc"
+      },
+      "whitelist":{  
+        "wfsurl":"http://gsp-geose-LoadBala-4EP8UFUE9SXL-919040015.us-east-1.elb.amazonaws.com:80/geoserver/piazza/wfs",
+        "featureType":"cb76fb5e-bd7d-44f7-bc03-22fdefcdf68e"
+      }
+   }
+}

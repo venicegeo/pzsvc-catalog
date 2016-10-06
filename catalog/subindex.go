@@ -15,13 +15,9 @@
 package catalog
 
 import (
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math"
-	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -58,9 +54,16 @@ func (si *Subindex) Register() {
 
 // Subindexes returns the map of available subindexes
 func Subindexes() map[string]Subindex {
-	if subindexMap == nil {
-		subindexMap = make(map[string]Subindex)
-	}
+	// var subindex Subindex
+	// if subindexMap == nil {
+	// 	subindexMap = make(map[string]Subindex)
+	//   red, _ := RedisClient()
+	// 	members := red.SMembers(imageCatalogPrefix+"-caches")
+	//   for _, key := range members.Val() {
+	//     subindex := Subindex{Key=member,Name=
+	//     subindexMap[key] = subindex
+	//   }
+	// }
 	return subindexMap
 }
 
@@ -134,43 +137,10 @@ func CacheSubindex(subindex Subindex) int64 {
 
 // CreateSubindex performs the actual subindex calculations
 func CreateSubindex(subindex Subindex) error {
-	var (
-		request  *http.Request
-		response *http.Response
-		bytes    []byte
-		gjIfc    interface{}
-		fc       *geojson.FeatureCollection
-		ok       bool
-	)
-
-	v := url.Values{}
-	v.Set("count", "9999")
-	v.Set("outputFormat", "application/json")
-	v.Set("version", "2.0.0")
-	v.Set("request", "GetFeature")
-	v.Set("typeName", subindex.FeatureType)
-
-	qurl := subindex.WfsURL + "?" + v.Encode()
-
-	request, _ = http.NewRequest("GET", qurl, nil)
-	response, _ = pzsvc.HTTPClient().Do(request)
-
-	defer response.Body.Close()
-	bytes, _ = ioutil.ReadAll(response.Body)
-
-	// Check for HTTP errors
-	if response.StatusCode < 200 || response.StatusCode > 299 {
-		message := fmt.Sprintf("Received %v: \"%v\" when performing a GetFeature request on %v\n%v", response.StatusCode, response.Status, qurl, string(bytes))
-		return &pzsvc.HTTPError{Status: response.StatusCode, Message: message}
-	}
-
-	gjIfc, _ = geojson.Parse(bytes)
-	if fc, ok = gjIfc.(*geojson.FeatureCollection); ok {
-		log.Printf("%v returned %v responses.", qurl, len(fc.Features))
+	if fc, err := geojson.FromWFS(subindex.WfsURL, subindex.FeatureType); err == nil {
 		go subindexFeatures(subindex, fc.Features)
 	} else {
-		message := fmt.Sprintf("Did not receive valid GeoJSON on request %v", qurl)
-		return errors.New(message)
+		return pzsvc.TraceErr(err)
 	}
 	return nil
 }

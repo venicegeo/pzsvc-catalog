@@ -29,7 +29,7 @@ PUSH http://localhost:8080/planet with the following parameters:
 ### Filter Descriptors
 * geojson=a valid GeoJSON block
 
-*OR* (this is not implemented yet)
+*OR*
 
 * wfsurl = something like `http://gsn-geose-loadbala-17usyyb36bfdl-1788485819.us-east-1.elb.amazonaws.com/geoserver/piazza/wfs`
 * featureType: the name of the WFS layer, something like `46a50997-709e-40f7-9abc-9438da773a72` 
@@ -87,6 +87,24 @@ PUSH http://localhost:8080/planet with the following parameters:
                }
            ]
          }
+      }
+   }
+}
+```
+
+### Example
+```
+{  
+   "pzGateway":"http://piazza.stage.geointservices.io",
+   "reharvest":true,
+   "filter":{  
+      "blacklist":{  
+        "wfsurl":"http://gsp-geose-LoadBala-4EP8UFUE9SXL-919040015.us-east-1.elb.amazonaws.com:80/geoserver/piazza/wfs",
+        "featureType":"8e31e022-4e1f-4a32-b341-4eb019ab45bc"
+      },
+      "whitelist":{  
+        "wfsurl":"http://gsp-geose-LoadBala-4EP8UFUE9SXL-919040015.us-east-1.elb.amazonaws.com:80/geoserver/piazza/wfs",
+        "featureType":"cb76fb5e-bd7d-44f7-bc03-22fdefcdf68e"
       }
    }
 }
