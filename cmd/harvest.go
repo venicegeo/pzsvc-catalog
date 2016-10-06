@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
@@ -30,8 +29,6 @@ const harvestCron = "@every 1h"
 const harvestEventTypeRoot = "beachfront:harvest:new-image-harvested"
 
 var (
-	domain = os.Getenv("DOMAIN")
-
 	harvestEventTypeID string
 )
 

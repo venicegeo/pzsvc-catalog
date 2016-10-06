@@ -102,6 +102,23 @@ func (services VcapServices) RedisOptions() *redis.Options {
 	return &result
 }
 
+// // Make a set of caches in case we want to nuke them later
+// func cacheToRedis(cacheName, key, value string, expire time.Duration) error {
+// 	var (
+// 		intCmd *redis.IntCmd
+// 		sCmd   *redis.StatusCmd
+// 	)
+// 	red, _ := RedisClient()
+// 	if sCmd = red.Set(key, value, expire); sCmd.Err() == nil {
+// 		if intCmd = red.SAdd(cacheName, key); intCmd.Err() != nil {
+// 			RedisError(red, intCmd.Err())
+// 		}
+// 		return intCmd.Err()
+// 	}
+// 	RedisError(red, sCmd.Err())
+// 	return sCmd.Err()
+// }
+
 // SetKey shouldn't exist. It is a hack to provide convenient persistence.
 func SetKey(key, value string) error {
 	red, _ := RedisClient()

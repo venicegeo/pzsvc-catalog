@@ -15,9 +15,9 @@
 package catalog
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
@@ -27,13 +27,13 @@ import (
 
 type harvestCallback func(*geojson.FeatureCollection, HarvestOptions) (int, error)
 
+const recurringRoot = "beachfront:harvest:recurrence"
+
 const harvestCron = "@every 1h"
 
 const harvestEventTypeRoot = "beachfront:harvest:new-image-harvested"
 
 var (
-	domain = os.Getenv("DOMAIN")
-
 	harvestEventTypeID string
 )
 
@@ -46,7 +46,7 @@ type HarvestOptions struct {
 	PiazzaAuthorization string        `json:"pzAuth"`
 	Filter              HarvestFilter `json:"filter"`
 	Cap                 int           `json:"cap"`
-	OptionsKey          string        `json:"optionsString,omitempty"`
+	Recurring           bool          `json:"recurring"`
 	callback            harvestCallback
 	EventTypeID         string
 }
@@ -128,4 +128,26 @@ func passHarvestFilter(options HarvestOptions, feature *geojson.Feature) bool {
 		}
 	}
 	return true
+}
+
+// DeleteRecurring removes all trace of a recurring harvest from storage
+func DeleteRecurring(key string) error {
+	red, _ := RedisClient()
+	if s1 := red.SIsMember(recurringRoot, key); !s1.Val() {
+		return pzsvc.ErrWithTrace("Key " + key + " is not a recurring harvest.")
+	}
+	red.SRem(recurringRoot, key)
+	red.Del(key)
+	return nil
+}
+
+// StoreRecurring adds the details of a recurring harvest to storage for later retrieval
+func StoreRecurring(key string, options HarvestOptions) error {
+	red, _ := RedisClient()
+	b, _ := json.Marshal(options)
+	if r1 := red.SAdd(recurringRoot, key); r1.Err() != nil {
+		return r1.Err()
+	}
+	r2 := red.Set(key, string(b), 0)
+	return r2.Err()
 }

@@ -276,14 +276,6 @@ func getResults(input *geojson.Feature, options SearchOptions) (SceneDescriptors
 	return result, string(bytes), nil
 }
 
-// Make a set of caches in case we want to nuke them later
-func registerCache(cacheName string) {
-	red, _ := RedisClient()
-	if intCmd := red.SAdd(imageCatalogPrefix+"-caches", cacheName); intCmd.Err() != nil {
-		RedisError(red, intCmd.Err())
-	}
-}
-
 // populateCache populates a cache corresponding
 // to the search criteria provided
 func populateCache(input *geojson.Feature, cacheName string) {
@@ -300,7 +292,7 @@ func populateCache(input *geojson.Feature, cacheName string) {
 		maxAcquiredDate time.Time
 	)
 
-	registerCache(cacheName)
+	// registerCache(cacheName) TODO: Fix cache management
 
 	if acquiredDateStr := input.PropertyString("acquiredDate"); acquiredDateStr != "" {
 		if acquiredDate, err = time.Parse(time.RFC3339, acquiredDateStr); err != nil {
@@ -474,8 +466,8 @@ func passImageDescriptor(id, test *geojson.Feature, rigorous bool) bool {
 	return true
 }
 
-// GetImageMetadata returns the image metadata as a GeoJSON feature
-func GetImageMetadata(id string) (*geojson.Feature, error) {
+// GetSceneMetadata returns the image metadata as a GeoJSON feature
+func GetSceneMetadata(id string) (*geojson.Feature, error) {
 	red, _ := RedisClient()
 	var stringCmd *redis.StringCmd
 	key := imageCatalogPrefix + ":" + id
@@ -491,7 +483,7 @@ func GetImageMetadata(id string) (*geojson.Feature, error) {
 			// We have to strip out the prefix. Annoying!
 			parts := strings.SplitN(ssc.Val()[0], ":", 2)
 			if len(parts) > 0 {
-				return GetImageMetadata(parts[1])
+				return GetSceneMetadata(parts[1])
 			}
 		}
 		return nil, errors.New("redis: nil even using wildcard search")
@@ -578,7 +570,7 @@ func SaveFeatureProperties(id string, properties map[string]interface{}) error {
 		feature *geojson.Feature
 		err     error
 	)
-	if feature, err = GetImageMetadata(id); err == nil {
+	if feature, err = GetSceneMetadata(id); err == nil {
 		for key, property := range properties {
 			feature.Properties[key] = property
 		}
@@ -611,6 +603,8 @@ func DropIndex() int {
 	red, _ := RedisClient()
 	transaction := red.Multi()
 	defer transaction.Close()
+
+	// Keys
 	if results := transaction.ZRange(imageCatalogPrefix, 0, -1); results.Err() == nil {
 		count = len(results.Val())
 		fmt.Printf("Dropping %v keys.", len(results.Val()))
@@ -618,6 +612,8 @@ func DropIndex() int {
 			transaction.Del(curr)
 		}
 	}
+
+	// Caches
 	key = imageCatalogPrefix + "-caches"
 	if results := transaction.SMembers(key); results.Err() == nil {
 		count += len(results.Val())
@@ -626,6 +622,17 @@ func DropIndex() int {
 			transaction.Del(curr)
 		}
 		transaction.Del(key)
+	}
+	transaction.Del(imageCatalogPrefix)
+
+	// Recurrences
+	if results := transaction.SMembers(recurringRoot); results.Err() == nil {
+		count += len(results.Val())
+		fmt.Printf("Dropping %v caches.", len(results.Val()))
+		for _, curr := range results.Val() {
+			transaction.Del(curr)
+		}
+		transaction.Del(recurringRoot)
 	}
 	transaction.Del(imageCatalogPrefix)
 	return count
@@ -637,14 +644,14 @@ func ImageIOReader(id, band, key string) (io.Reader, error) {
 		feature *geojson.Feature
 		err     error
 	)
-	if feature, err = GetImageMetadata(id); err != nil {
+	if feature, err = GetSceneMetadata(id); err != nil {
 		return nil, err
 	}
-	return ImageFeatureIOReader(feature, band, key)
+	return SceneBandIOReader(feature, band, key)
 }
 
-// ImageFeatureIOReader returns an io Reader for the requested band
-func ImageFeatureIOReader(feature *geojson.Feature, band string, key string) (io.Reader, error) {
+// SceneBandIOReader returns an io Reader for the requested band
+func SceneBandIOReader(feature *geojson.Feature, band string, key string) (io.Reader, error) {
 	var (
 		result    io.Reader
 		err       error

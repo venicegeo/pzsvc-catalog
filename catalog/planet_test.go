@@ -16,6 +16,7 @@ package catalog
 
 import (
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/venicegeo/geojson-go/geojson"
@@ -41,5 +42,24 @@ func TestPlanet(t *testing.T) {
 		t.Logf("Length: %v\n", len(fc.Features))
 	default:
 		t.Errorf("%#v\n", planetResponse)
+	}
+}
+
+func TestRecurringURL(t *testing.T) {
+	const testRecurringURL = "https://localhost:8080/planet/12345?event=true"
+	u := recurringURL("localhost:8080", "12345")
+	if u.String() != testRecurringURL {
+		t.Errorf("Expected %v, got %v", testRecurringURL, u.String())
+	}
+}
+
+func TestLandsatIDToS3Path(t *testing.T) {
+	u, _ := url.Parse(landsatIDToS3Path("LC81490342016259LGN00") + "index.html")
+	resp, err := http.Get(u.String())
+	if err != nil {
+		t.Error(err.Error())
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected 200, got %v from %v", resp.StatusCode, u.String())
 	}
 }

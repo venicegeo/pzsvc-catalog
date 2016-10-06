@@ -51,7 +51,7 @@ func serve() {
 		router.HandleFunc("/image/{id}", imageHandler)
 		router.HandleFunc("/discover", discoverHandler)
 		router.HandleFunc("/planet", planetHandler)
-		router.HandleFunc("/planetRecurring", planetRecurringHandler)
+		router.HandleFunc("/planet/{key}", planetRecurringHandler)
 		router.HandleFunc("/unharvest", unharvestHandler)
 		router.HandleFunc("/subindex", subindexHandler)
 		router.HandleFunc("/provision/{id}/{band}", provisionHandler)
@@ -96,7 +96,7 @@ func dropIndexHandler(w http.ResponseWriter, r *http.Request) {
 func imageHandler(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	id := vars["id"]
-	if metadata, err := catalog.GetImageMetadata(id); err == nil {
+	if metadata, err := catalog.GetSceneMetadata(id); err == nil {
 		bytes, _ := json.Marshal(metadata)
 		writer.Write(bytes)
 	} else {
@@ -109,7 +109,7 @@ func provisionHandler(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	id := vars["id"]
 	band := vars["band"]
-	if metadata, err := catalog.GetImageMetadata(id); err != nil {
+	if metadata, err := catalog.GetSceneMetadata(id); err != nil {
 		message := fmt.Sprintf("Unable to retrieve metadata for %v: %v", id, err.Error())
 		http.Error(writer, message, http.StatusBadRequest)
 	} else {
