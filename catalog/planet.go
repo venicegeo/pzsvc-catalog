@@ -263,7 +263,7 @@ func PlanetRecurring(host string, options HarvestOptions) error {
 	serviceIn.URL = recurringURL(host, serviceOut.Data.ServiceID).String()
 	b, _ = json.Marshal(serviceIn)
 	key := recurringRoot + ":" + serviceOut.Data.ServiceID
-	if _, err = pzsvc.RequestKnownJSON("PUT", string(b), options.PiazzaGateway+"/service/"+key, options.PiazzaAuthorization, &serviceOut); err != nil {
+	if _, err = pzsvc.RequestKnownJSON("PUT", string(b), options.PiazzaGateway+"/service/"+serviceOut.Data.ServiceID, options.PiazzaAuthorization, &serviceOut); err != nil {
 		return err
 	}
 
