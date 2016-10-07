@@ -53,7 +53,7 @@ func testHarvestProcess(t *testing.T, filename string) {
 	feature := geojson.NewFeature(geojson.NewPolygon(c3), "99999", nil)
 	if passHarvestFilter(ho, feature) {
 		t.Errorf("Expected harvest filter to fail (blacklist). %v", filename)
-		log.Printf("BL: %v", ho.Filter.BlackList.Geos.String())
+		log.Printf("BL: %v", ho.Filter.BlackList.TileMap)
 		log.Printf("f: %v", feature.String())
 	}
 	c3[0][0][1] = -50
@@ -76,7 +76,7 @@ func testHarvestProcess(t *testing.T, filename string) {
 	feature = geojson.NewFeature(geojson.NewPolygon(c3), "99999", nil)
 	if passHarvestFilter(ho, feature) {
 		t.Errorf("Expected harvest filter to fail (whitelist). %v", filename)
-		log.Printf("WL: %v", ho.Filter.WhiteList.Geos.String())
+		log.Printf("WL: %v", ho.Filter.WhiteList.TileMap)
 		log.Printf("f: %v", feature.String())
 	}
 }

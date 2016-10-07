@@ -53,7 +53,6 @@ func serve() {
 		router.HandleFunc("/planet", planetHandler)
 		router.HandleFunc("/planet/{key}", planetRecurringHandler)
 		router.HandleFunc("/unharvest", unharvestHandler)
-		router.HandleFunc("/subindex", subindexHandler)
 		router.HandleFunc("/provision/{id}/{band}", provisionHandler)
 		// 	case "/help":
 		// 		fmt.Fprintf(writer, "We're sorry, help is not yet implemented.\n")

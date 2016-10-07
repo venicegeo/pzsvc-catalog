@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/paulsmith/gogeos/geos"
 	"github.com/venicegeo/geojson-geos-go/geojsongeos"
@@ -59,10 +60,11 @@ type HarvestFilter struct {
 
 // FeatureLayer describes features
 type FeatureLayer struct {
-	WfsURL      string                 `json:"wfsurl"`
-	FeatureType string                 `json:"featureType"`
-	GeoJSON     map[string]interface{} `json:"geojson"`
-	Geos        *geos.Geometry
+	WfsURL      string                    `json:"wfsurl"`
+	FeatureType string                    `json:"featureType"`
+	GeoJSON     map[string]interface{}    `json:"geojson"`
+	TileMap     map[string]*geos.Geometry `json:"-"`
+	// Geos        *geos.Geometry
 }
 
 func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(error)) error {
@@ -93,6 +95,10 @@ func (hf *HarvestFilter) PrepareGeometries() error {
 	if err := hf.WhiteList.PrepareGeometries(); err != nil {
 		return err
 	}
+	if len(hf.WhiteList.TileMap) == 0 {
+		hf.WhiteList.TileMap = make(map[string]*geos.Geometry)
+		hf.WhiteList.TileMap["000000"] = wholeWorld()
+	}
 	return hf.BlackList.PrepareGeometries()
 }
 
@@ -103,7 +109,7 @@ func (fl *FeatureLayer) PrepareGeometries() error {
 		err error
 		fc  *geojson.FeatureCollection
 	)
-	if fl.Geos == nil {
+	if fl.TileMap == nil {
 		if fl.GeoJSON == nil {
 			if fc, err = geojson.FromWFS(fl.WfsURL, fl.FeatureType); err != nil {
 				return err
@@ -111,8 +117,8 @@ func (fl *FeatureLayer) PrepareGeometries() error {
 		} else {
 			fc = geojson.FeatureCollectionFromMap(fl.GeoJSON)
 		}
-		if fl.Geos, err = geojsongeos.GeosFromGeoJSON(fc); err != nil {
-			return pzsvc.ErrWithTrace(fmt.Sprintf("Layer geometry cannot be parsed. %v", err.Error()))
+		if fl.TileMap, err = tilemapFeatures(fc.Features); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -128,15 +134,12 @@ func passHarvestFilter(options HarvestOptions, feature *geojson.Feature) bool {
 		log.Printf("Harvest geometry cannot be parsed. Dropping from harvest. %v", err.Error())
 		return false
 	}
-	if options.Filter.WhiteList.Geos != nil {
-		if disjoint, err = harvestGeom.Disjoint(options.Filter.WhiteList.Geos); err != nil || disjoint {
-			return false
-		}
+
+	if disjoint, err = options.Filter.BlackList.Disjoint(harvestGeom); err != nil || !disjoint {
+		return false
 	}
-	if options.Filter.BlackList.Geos != nil {
-		if disjoint, err = harvestGeom.Disjoint(options.Filter.BlackList.Geos); err != nil || !disjoint {
-			return false
-		}
+	if disjoint, err = options.Filter.WhiteList.Disjoint(harvestGeom); err != nil || disjoint {
+		return false
 	}
 	return true
 }
@@ -161,4 +164,91 @@ func StoreRecurring(key string, options HarvestOptions) error {
 	}
 	r2 := red.Set(key, string(b), 0)
 	return r2.Err()
+}
+
+func wholeWorld() *geos.Geometry {
+	shell, _ := geos.NewLinearRing(
+		geos.Coord{X: -180, Y: -90},
+		geos.Coord{X: 180, Y: -90},
+		geos.Coord{X: 180, Y: 90},
+		geos.Coord{X: -180, Y: 90},
+		geos.Coord{X: -180, Y: -90})
+	result, _ := geos.PolygonFromGeom(shell)
+	return result
+}
+
+func tilemapFeatures(features []*geojson.Feature) (map[string]*geos.Geometry, error) {
+	var (
+		tiledGeometries [180 * 360][]*geos.Geometry
+		geometry        *geos.Geometry
+		err             error
+	)
+
+	// Put each feature's geometry in the bucket for the right tile
+	for _, feature := range features {
+		bbox := feature.ForceBbox()
+		lonIndex := int(math.Floor(bbox[0]) + 180)
+		latIndex := int(math.Floor(bbox[1]) + 90)
+		index := lonIndex + (360 * latIndex)
+		if geometry, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
+			return nil, err
+		}
+		tiledGeometries[index] = append(tiledGeometries[index], geometry)
+	}
+	return combineGeometries(tiledGeometries), nil
+}
+
+func combineGeometries(tiles [180 * 360][]*geos.Geometry) map[string]*geos.Geometry {
+	result := make(map[string]*geos.Geometry)
+
+	for index, tgs := range tiles {
+		latIndex := int(math.Floor(float64(index) / 180.0))
+		lonIndex := int(math.Mod(float64(index), 180))
+		key := fmt.Sprintf("%03d%03d", lonIndex, latIndex)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Recovered %v\n%v", r, tgs)
+			}
+		}()
+		switch len(tgs) {
+		case 0:
+			//noop
+			// log.Printf("Index %v was empty.", index)
+		case 1:
+			result[key] = tgs[0]
+			// result[key] = geos.PrepareGeometry(tgs[0])
+		default:
+			if geometry, err := geos.NewCollection(geos.GEOMETRYCOLLECTION, tgs[:]...); err == nil {
+				if geometry, err = geometry.Buffer(0.0); err == nil {
+					result[key] = geometry
+					// result[key] = geos.PrepareGeometry(geometry)
+				} else {
+					log.Printf("Received %v when buffering geometry for %v. Continuing.", err.Error(), index)
+					continue
+				}
+			} else {
+				log.Printf("Received %v when creating a collection for %v. Continuing", err.Error(), index)
+				continue
+			}
+		}
+	}
+	return result
+}
+
+// Disjoint returns true if the layer is disjoint with the geometry provided
+func (fl *FeatureLayer) Disjoint(input *geos.Geometry) (bool, error) {
+	var (
+		disjoint bool
+		err      error
+	)
+	for _, geom := range fl.TileMap {
+		if disjoint, err = geom.Disjoint(input); err == nil {
+			if !disjoint {
+				return false, nil
+			}
+		} else {
+			return false, err
+		}
+	}
+	return true, nil
 }

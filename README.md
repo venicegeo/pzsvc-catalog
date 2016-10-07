@@ -12,7 +12,7 @@ Now relies on GEOS, and therefore has its own buildpack.
 replace localhost:8080 to wherever this application is deployed (e.g., http://pzsvc-image-catalog.stage.geointservices.io/)
 
 ## Harvesting Planet Labs
-PUSH http://localhost:8080/planet with the following parameters:
+POST http://localhost:8080/planet with the following parameters:
 * Content-Type=application/json
 * Body
    * PL_API_KEY=...
@@ -143,24 +143,3 @@ When this is working right, the following will occur:
 There is no way to search events by Event Type Name at this time. You need to resolve to an Event Type ID. Once you get this ID, you can call the `/event` endpoint on the gateway with `?eventTypeId=...`
 * Call http://localhost:8080/eventTypeID
 * pzGateway=http://pz-gateway.stage.geointservices.io
-
-## Subindexes - BEING REBUILT. STAY TUNED.
-You can constrain your outputs to features that overlap a certain set of regions.
-
-### Establishing a subindex
-Post to http://localhost:8080/subindex
-* wfsurl = something like `http://gsn-geose-loadbala-17usyyb36bfdl-1788485819.us-east-1.elb.amazonaws.com/geoserver/piazza/wfs`
-* name
-* featureType: the name of the WFS layer, something like `46a50997-709e-40f7-9abc-9438da773a72` 
-
-### Searching for existing subindexes
-Get http://localhost:8080/subindex
-
-### Using a subindex
-Perform a discovery operation just like [testing discovery](#testing-discovery) with an additional parameter:
-* subIndex (the key of a subindex as revealed by the previous operation)
-
-Note: subindexes are also created by some discovery operations. 
-In fact you can create subindexes recursively if you desire. 
-
-New images are supposed to get inserted into subindexes as they are harvested.

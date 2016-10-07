@@ -526,22 +526,22 @@ func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
 	z := redis.Z{Score: calculateScore(feature), Member: key}
 	red.ZAdd(imageCatalogPrefix, z)
 
-	if subindexMap != nil {
-		var overlaps bool
-		for name := range subindexMap {
-			if geosFeature, err := geojsongeos.GeosFromGeoJSON(feature); err == nil {
-				for _, pg := range subindexMap[name].TileMap {
-					if overlaps, err = pg.Overlaps(geosFeature); err != nil {
-						return "", err
-					} else if overlaps {
-						red.ZAdd(name, z)
-					}
-				}
-			} else {
-				return "", err
-			}
-		}
-	}
+	// if subindexMap != nil {
+	// 	var overlaps bool
+	// 	for name := range subindexMap {
+	// 		if geosFeature, err := geojsongeos.GeosFromGeoJSON(feature); err == nil {
+	// 			for _, pg := range subindexMap[name].TileMap {
+	// 				if overlaps, err = pg.Overlaps(geosFeature); err != nil {
+	// 					return "", err
+	// 				} else if overlaps {
+	// 					red.ZAdd(name, z)
+	// 				}
+	// 			}
+	// 		} else {
+	// 			return "", err
+	// 		}
+	// 	}
+	// }
 	return key, nil
 }
 
