@@ -1,0 +1,10 @@
+{  
+   "pzGateway":"http://piazza.stage.geointservices.io",
+   "reharvest":true,
+   "filter":{  
+      "blacklist":{  
+      },
+      "whitelist":{
+      }
+   }
+}

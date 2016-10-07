@@ -111,8 +111,12 @@ func (fl *FeatureLayer) PrepareGeometries() error {
 	)
 	if fl.TileMap == nil {
 		if fl.GeoJSON == nil {
-			if fc, err = geojson.FromWFS(fl.WfsURL, fl.FeatureType); err != nil {
-				return err
+			if fl.WfsURL == "" {
+				fc = geojson.NewFeatureCollection(nil)
+			} else {
+				if fc, err = geojson.FromWFS(fl.WfsURL, fl.FeatureType); err != nil {
+					return err
+				}
 			}
 		} else {
 			fc = geojson.FeatureCollectionFromMap(fl.GeoJSON)

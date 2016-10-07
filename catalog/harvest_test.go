@@ -24,11 +24,12 @@ import (
 )
 
 func TestHarvest(t *testing.T) {
-	testHarvestProcess(t, "../data/harvest_options1.json")
-	testHarvestProcess(t, "../data/harvest_options2.json")
+	testHarvestProcess(t, "../data/harvest_options1.json", true)
+	testHarvestProcess(t, "../data/harvest_options2.json", true)
+	testHarvestProcess(t, "../data/harvest_options3.json", false)
 }
 
-func testHarvestProcess(t *testing.T, filename string) {
+func testHarvestProcess(t *testing.T, filename string, doWeCare bool) {
 	var (
 		bytes []byte
 		err   error
@@ -51,7 +52,7 @@ func testHarvestProcess(t *testing.T, filename string) {
 	}
 	c3 = append(c3, append(c2, append(c11, -180, -90), append(c12, 180, 90), append(c13, -180, 90), append(c14, -180, -90)))
 	feature := geojson.NewFeature(geojson.NewPolygon(c3), "99999", nil)
-	if passHarvestFilter(ho, feature) {
+	if passHarvestFilter(ho, feature) && doWeCare {
 		t.Errorf("Expected harvest filter to fail (blacklist). %v", filename)
 		log.Printf("BL: %v", ho.Filter.BlackList.TileMap)
 		log.Printf("f: %v", feature.String())
@@ -61,7 +62,7 @@ func testHarvestProcess(t *testing.T, filename string) {
 	c3[0][2][1] = -40
 	c3[0][3][1] = -50
 	feature = geojson.NewFeature(geojson.NewPolygon(c3), "99999", nil)
-	if !passHarvestFilter(ho, feature) {
+	if !passHarvestFilter(ho, feature) && doWeCare {
 		t.Errorf("Expected harvest filter to succeed. %v", filename)
 		log.Printf("f: %v", feature.String())
 	}
@@ -74,7 +75,7 @@ func testHarvestProcess(t *testing.T, filename string) {
 	c3[0][3][0] = -160
 	c3[0][3][1] = 0
 	feature = geojson.NewFeature(geojson.NewPolygon(c3), "99999", nil)
-	if passHarvestFilter(ho, feature) {
+	if passHarvestFilter(ho, feature) && doWeCare {
 		t.Errorf("Expected harvest filter to fail (whitelist). %v", filename)
 		log.Printf("WL: %v", ho.Filter.WhiteList.TileMap)
 		log.Printf("f: %v", feature.String())
