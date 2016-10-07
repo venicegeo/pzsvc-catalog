@@ -12,3 +12,6 @@ go get -v github.com/venicegeo/pzsvc-image-catalog/...
 
 src=$GOPATH/bin/pzsvc-image-catalog
 mv $src $root/$APP.$EXT
+
+go test -v -coverprofile=geojson.cov github.com/venicegeo/geojson-go/geojson
+go test -v -coverprofile=catalog.cov github.com/venicegeo/pzsvc-image-catalog

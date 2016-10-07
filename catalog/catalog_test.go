@@ -61,7 +61,7 @@ func TestBeachfront(t *testing.T) {
 	// Cache search
 	options2 := SearchOptions{MinimumIndex: 0, MaximumIndex: -1}
 	cacheName := getDiscoverCacheName(feature)
-	if cacheName != `catalog-test{"type":"Feature","geometry":null,"properties":{}}` {
+	if cacheName != `catalog-test{"type":"Feature","geometry":null}` {
 		t.Errorf("Unexpected cache name %v", cacheName)
 	}
 	go populateCache(feature, cacheName)
