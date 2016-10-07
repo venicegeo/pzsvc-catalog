@@ -29,6 +29,8 @@ func planetHandler(w http.ResponseWriter, r *http.Request) {
 		options   catalog.HarvestOptions
 		err       error
 		eventType pzsvc.EventType
+		eventID   string
+		triggerID string
 	)
 	defer r.Body.Close()
 	if _, err = pzsvc.ReadBodyJSON(&options, r.Body); err != nil {
@@ -66,8 +68,8 @@ func planetHandler(w http.ResponseWriter, r *http.Request) {
 	go catalog.HarvestPlanet(options)
 	w.Write([]byte("Harvesting started. Check back later."))
 	if options.Recurring {
-		if err = catalog.PlanetRecurring(r.Host, options); err == nil {
-			w.Write([]byte("Recurring harvest initialized.\n"))
+		if eventID, triggerID, err = catalog.PlanetRecurring(r.Host, options); err == nil {
+			w.Write([]byte("Recurring harvest initialized.\nEvent ID: " + eventID + "\nTrigger ID:" + triggerID))
 		} else {
 			http.Error(w, "Failed to initialize recurring harvest: \n"+err.Error(), http.StatusBadRequest)
 		}

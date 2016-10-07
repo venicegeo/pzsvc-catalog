@@ -234,7 +234,8 @@ func pluckBandToProducts(products map[string]interface{}, bands *map[string]stri
 }
 
 // PlanetRecurring establishes the workflow management for a recurring harvest
-func PlanetRecurring(host string, options HarvestOptions) error {
+// and returns the event ID and trigger ID
+func PlanetRecurring(host string, options HarvestOptions) (string, string, error) {
 	var (
 		events        []pzsvc.Event
 		eventType     pzsvc.EventType
@@ -256,7 +257,7 @@ func PlanetRecurring(host string, options HarvestOptions) error {
 	serviceIn.Method = "POST"
 	b, _ = json.Marshal(serviceIn)
 	if b, err = pzsvc.RequestKnownJSON("POST", string(b), options.PiazzaGateway+"/service", options.PiazzaAuthorization, &serviceOut); err != nil {
-		return err
+		return "", "", err
 	}
 
 	// Update the service with the service ID now that we have it so we can tell ourselves what it is later. Got it?
@@ -264,22 +265,22 @@ func PlanetRecurring(host string, options HarvestOptions) error {
 	b, _ = json.Marshal(serviceIn)
 	key := recurringRoot + ":" + serviceOut.Data.ServiceID
 	if _, err = pzsvc.RequestKnownJSON("PUT", string(b), options.PiazzaGateway+"/service/"+serviceOut.Data.ServiceID, options.PiazzaAuthorization, &serviceOut); err != nil {
-		return err
+		return "", "", err
 	}
 
 	if err = StoreRecurring(key, options); err != nil {
-		return err
+		return "", "", err
 	}
 
 	// Get the event type
 	mapping := make(map[string]interface{})
 	if eventType, err = pzsvc.GetEventType(recurringRoot, mapping, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
-		return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to retrieve event type %v: %v", recurringRoot, err.Error()))
+		return "", "", pzsvc.ErrWithTrace(fmt.Sprintf("Failed to retrieve event type %v: %v", recurringRoot, err.Error()))
 	}
 
 	// Is there an event?
 	if events, err = pzsvc.Events(eventType.EventTypeID, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
-		return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to retrieve events for event type %v: %v", eventType.EventTypeID, err.Error()))
+		return "", "", pzsvc.ErrWithTrace(fmt.Sprintf("Failed to retrieve events for event type %v: %v", eventType.EventTypeID, err.Error()))
 	}
 	for _, event := range events {
 		if event.CronSchedule == harvestCron {
@@ -292,12 +293,11 @@ func PlanetRecurring(host string, options HarvestOptions) error {
 			EventTypeID: eventType.EventTypeID,
 			Data:        make(map[string]interface{})}
 		if eventResponse, err = pzsvc.AddEvent(event, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
-			return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to add event for event type %v: %v", eventType.EventTypeID, err.Error()))
+			return "", "", pzsvc.ErrWithTrace(fmt.Sprintf("Failed to add event for event type %v: %v", eventType.EventTypeID, err.Error()))
 		}
 		newEvent = eventResponse.Data
 		matchingEvent = &newEvent
 	}
-	log.Printf("Event: %v", matchingEvent.EventID)
 
 	trigger.Name = "Beachfront Recurring Harvest"
 	trigger.EventTypeID = eventType.EventTypeID
@@ -309,10 +309,9 @@ func PlanetRecurring(host string, options HarvestOptions) error {
 	trigger.Job.JobType.Data.DataOutput = append(trigger.Job.JobType.Data.DataOutput, pzsvc.DataType{MimeType: "text/plain", Type: "text"})
 
 	if triggerOut, err = pzsvc.AddTrigger(trigger, options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
-		return pzsvc.ErrWithTrace(fmt.Sprintf("Failed to add trigger %#v: %v", trigger, err.Error()))
+		return "", "", pzsvc.ErrWithTrace(fmt.Sprintf("Failed to add trigger %#v: %v", trigger, err.Error()))
 	}
-	log.Printf("Trigger: %v", triggerOut.Data.TriggerID)
-	return err
+	return matchingEvent.EventID, triggerOut.Data.TriggerID, err
 }
 
 func recurringURL(host, key string) *url.URL {

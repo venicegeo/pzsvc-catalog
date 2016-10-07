@@ -136,6 +136,7 @@ When this is done, the image catalog will set up the following:
 * trigger to call the service when the event fires
 
 When this is working right, the following will occur:
+* HTTP response contains the event ID and trigger ID (plain text currently)
 * harvest operations kicked off in image catalog (see PCF logs for evidence)
 * events fired in Piazza (event name is something like `beachfront:harvest:new-image-harvested:0`) for each newly harvested scene 
 
