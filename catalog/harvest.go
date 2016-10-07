@@ -133,13 +133,14 @@ func passHarvestFilter(options HarvestOptions, feature *geojson.Feature) bool {
 		harvestGeom *geos.Geometry
 		err         error
 		disjoint    bool
+		intersects  bool
 	)
 	if harvestGeom, err = geojsongeos.GeosFromGeoJSON(feature); err != nil {
 		log.Printf("Harvest geometry cannot be parsed. Dropping from harvest. %v", err.Error())
 		return false
 	}
 
-	if disjoint, err = options.Filter.BlackList.Disjoint(harvestGeom); err != nil || !disjoint {
+	if intersects, err = options.Filter.BlackList.Intersects(harvestGeom); err != nil || intersects {
 		return false
 	}
 	if disjoint, err = options.Filter.WhiteList.Disjoint(harvestGeom); err != nil || disjoint {
@@ -237,6 +238,24 @@ func combineGeometries(tiles [180 * 360][]*geos.Geometry) map[string]*geos.Geome
 		}
 	}
 	return result
+}
+
+// Intersects returns true if the layer is disjoint with the geometry provided
+func (fl *FeatureLayer) Intersects(input *geos.Geometry) (bool, error) {
+	var (
+		intersects bool
+		err        error
+	)
+	for _, geom := range fl.TileMap {
+		if intersects, err = geom.Intersects(input); err == nil {
+			if intersects {
+				return true, nil
+			}
+		} else {
+			return false, err
+		}
+	}
+	return false, nil
 }
 
 // Disjoint returns true if the layer is disjoint with the geometry provided
