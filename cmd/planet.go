@@ -101,7 +101,7 @@ func planetRecurringHandler(w http.ResponseWriter, r *http.Request) {
 		optionsString string
 	)
 	vars := mux.Vars(r)
-	key := vars["id"]
+	key := vars["key"]
 
 	// Pull cached options from storage
 	// Event is the only parameter that needs to be overridden from cached options
