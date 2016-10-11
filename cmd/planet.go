@@ -101,6 +101,20 @@ func planetRecurringHandler(w http.ResponseWriter, r *http.Request) {
 	)
 	vars := mux.Vars(r)
 	key := vars["id"]
+
+	// Pull cached options from storage
+	// Event is the only parameter that needs to be overridden from cached options
+	event = options.Event
+	if optionsString, err = catalog.GetKey(key); err != nil {
+		http.Error(w, "Unable to retrieve request options: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err = json.Unmarshal([]byte(optionsString), &options); err != nil {
+		http.Error(w, "Unable to unmarshal stored harvesting options: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	options.Event = event
+
 	// Let's test the credentials before we do anything else
 	if err = pzsvc.TestPiazzaAuth(options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
 		if httpError, ok := err.(*pzsvc.HTTPError); ok {
@@ -119,18 +133,6 @@ func planetRecurringHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Unable to read planet harvesting options from request: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-
-		// This is the only parameter that needs to be overridden from cached options
-		event = options.Event
-		if optionsString, err = catalog.GetKey(key); err != nil {
-			http.Error(w, "Unable to retrieve request options: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if err = json.Unmarshal([]byte(optionsString), &options); err != nil {
-			http.Error(w, "Unable to unmarshal stored harvesting options: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		options.Event = event
 
 		if options.Event {
 			if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), options.PiazzaGateway, options.PiazzaAuthorization); err == nil {
