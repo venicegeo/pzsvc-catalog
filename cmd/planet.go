@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -106,7 +107,11 @@ func planetRecurringHandler(w http.ResponseWriter, r *http.Request) {
 	// Event is the only parameter that needs to be overridden from cached options
 	event = options.Event
 	if optionsString, err = catalog.GetKey(key); err != nil {
-		http.Error(w, "Unable to retrieve request options: "+err.Error(), http.StatusInternalServerError)
+		if err.Error() == "redis: nil" {
+			http.Error(w, fmt.Sprintf("Request options not found at %v.", key), http.StatusNotFound)
+		} else {
+			http.Error(w, "Unable to retrieve request options: "+err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 	if err = json.Unmarshal([]byte(optionsString), &options); err != nil {

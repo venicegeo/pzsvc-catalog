@@ -164,6 +164,7 @@ func DeleteRecurring(key string) error {
 func StoreRecurring(key string, options HarvestOptions) error {
 	red, _ := RedisClient()
 	b, _ := json.Marshal(options)
+	fmt.Printf("Attempting to register recurring key of %v", key)
 	if r1 := red.SAdd(recurringRoot, key); r1.Err() != nil {
 		return r1.Err()
 	}
