@@ -261,9 +261,9 @@ func PlanetRecurring(host string, options HarvestOptions) (string, string, error
 	}
 
 	// Update the service with the service ID now that we have it so we can tell ourselves what it is later. Got it?
-	serviceIn.URL = recurringURL(host, serviceOut.Data.ServiceID).String()
-	b, _ = json.Marshal(serviceIn)
 	key := recurringRoot + ":" + serviceOut.Data.ServiceID
+	serviceIn.URL = recurringURL(host, key).String()
+	b, _ = json.Marshal(serviceIn)
 	if _, err = pzsvc.RequestKnownJSON("PUT", string(b), options.PiazzaGateway+"/service/"+serviceOut.Data.ServiceID, options.PiazzaAuthorization, &serviceOut); err != nil {
 		return "", "", err
 	}
