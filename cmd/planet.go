@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -97,15 +98,12 @@ func planetRecurringHandler(w http.ResponseWriter, r *http.Request) {
 		options       catalog.HarvestOptions
 		err           error
 		eventType     pzsvc.EventType
-		event         bool
 		optionsString string
 	)
 	vars := mux.Vars(r)
 	key := vars["key"]
 
 	// Pull cached options from storage
-	// Event is the only parameter that needs to be overridden from cached options
-	event = options.Event
 	if optionsString, err = catalog.GetKey(key); err != nil {
 		if err.Error() == "redis: nil" {
 			http.Error(w, fmt.Sprintf("Request options not found at %v.", key), http.StatusNotFound)
@@ -118,7 +116,6 @@ func planetRecurringHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unable to unmarshal stored harvesting options: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	options.Event = event
 
 	// Let's test the credentials before we do anything else
 	if err = pzsvc.TestPiazzaAuth(options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
@@ -133,11 +130,8 @@ func planetRecurringHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET", "POST":
 
-		defer r.Body.Close()
-		if _, err = pzsvc.ReadBodyJSON(&options, r.Body); err != nil {
-			http.Error(w, "Unable to read planet harvesting options from request: "+err.Error(), http.StatusBadRequest)
-			return
-		}
+		// Event is the only parameter that needs to be overridden from cached options
+		options.Event, _ = strconv.ParseBool(r.FormValue("event"))
 
 		if options.Event {
 			if eventType, err = pzsvc.GetEventType(harvestEventTypeRoot, harvestEventTypeMapping(), options.PiazzaGateway, options.PiazzaAuthorization); err == nil {
