@@ -209,7 +209,9 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) (
 		count++
 		if options.Event {
 			cb := func(err error) {
-				log.Printf("Failed to issue event for %v: %v", id, err.Error())
+				if err != nil {
+					log.Printf("Failed to issue event for %v: %v", id, err.Error())
+				}
 			}
 			go issueEvent(options, feature, cb)
 		}
