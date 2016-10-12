@@ -33,9 +33,13 @@ const baseURLString = "https://api.planet.com/"
 
 // HarvestPlanet harvests Planet Labs
 func HarvestPlanet(options HarvestOptions) {
+	requestPageSize := 1000
+	if options.RequestPageSize > 0 && options.RequestPageSize < requestPageSize {
+		requestPageSize = options.RequestPageSize
+	}
 	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
 	options.callback = storePlanetLandsat
-	harvestPlanetEndpoint("v0/scenes/landsat/?count=1000", options)
+	harvestPlanetEndpoint(fmt.Sprintf("v0/scenes/landsat/?count=%v", requestPageSize), options)
 	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
 }
 

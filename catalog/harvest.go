@@ -48,6 +48,7 @@ type HarvestOptions struct {
 	Filter              HarvestFilter `json:"filter"`
 	Cap                 int           `json:"cap"`
 	Recurring           bool          `json:"recurring"`
+	RequestPageSize     int           `json:"requestPageSize"`
 	callback            harvestCallback
 	EventTypeID         string
 }
