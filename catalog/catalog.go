@@ -493,10 +493,7 @@ func GetSceneMetadata(id string) (*geojson.Feature, error) {
 }
 
 func featureKey(feature *geojson.Feature) string {
-	return imageCatalogPrefix + ":" +
-		feature.ID + "&" +
-		feature.ForceBbox().String() + "," +
-		strconv.FormatFloat(feature.PropertyFloat("cloudCover"), 'f', 6, 64)
+	return fmt.Sprintf("%v:%v&%v,%v", imageCatalogPrefix, feature.ID, feature.ForceBbox().String(), strconv.FormatFloat(feature.PropertyFloat("cloudCover"), 'f', 6, 64))
 }
 
 // StoreFeature stores a feature into the catalog
@@ -666,7 +663,7 @@ func SceneBandIOReader(feature *geojson.Feature, band string, key string) (io.Re
 			if urlString, ok = urlIfc.(string); ok {
 				// This now works for PlanetLabs and Landsat.
 				// Others will require additional code.
-				if strings.HasPrefix(feature.ID, "pl:") {
+				if strings.HasPrefix(feature.IDStr(), "pl:") {
 					if response, err = doPlanetRequest("GET", urlString, key); err != nil {
 						return nil, err
 					}

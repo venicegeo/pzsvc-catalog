@@ -181,8 +181,8 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) (
 		}
 		properties := make(map[string]interface{})
 		properties["cloudCover"] = curr.Properties["cloud_cover"].(map[string]interface{})["estimated"].(float64)
-		id := curr.ID
-		url := landsatIDToS3Path(curr.ID)
+		id := curr.IDStr()
+		url := landsatIDToS3Path(id)
 		properties["path"] = url + "index.html"
 		properties["thumb_large"] = url + id + "_thumb_large.jpg"
 		properties["thumb_small"] = url + id + "_thumb_small.jpg"
