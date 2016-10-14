@@ -1,5 +1,5 @@
 #pzsvc-image-catalog
-nascent catalog for Beachfront et. al.
+Nascent catalog for Beachfront et. al.
 
 Currently relies on Redis being installed and running locally at the default location.
 
@@ -24,6 +24,7 @@ POST http://localhost:8080/planet with the following parameters:
       * whitelist
       * blacklist
    * cap=[int] caps the size of the index at approximately that amount (for testing only)
+   * requestPageSize: number of scenes harvested at a time (default: 1000)
 * Provide auth information for the Piazza Gateway in the header - you must authenticate for this process to work.
 
 ### Filter Descriptors
