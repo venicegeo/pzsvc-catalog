@@ -65,18 +65,22 @@ type FeatureLayer struct {
 	FeatureType string                    `json:"featureType"`
 	GeoJSON     map[string]interface{}    `json:"geojson"`
 	TileMap     map[string]*geos.Geometry `json:"-"`
-	// Geos        *geos.Geometry
 }
 
 func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(error)) error {
 	event := pzsvc.Event{
 		EventTypeID: options.EventTypeID,
 		Data:        make(map[string]interface{})}
-	event.Data["imageID"] = feature.ID
-	event.Data["minx"] = feature.ForceBbox()[0]
-	event.Data["miny"] = feature.ForceBbox()[1]
-	event.Data["maxx"] = feature.ForceBbox()[2]
-	event.Data["maxy"] = feature.ForceBbox()[3]
+	event.Data["imageID"] = feature.IDStr()
+	bbox := feature.ForceBbox()
+	if len(bbox) > 0 {
+		event.Data["minx"] = feature.ForceBbox()[0]
+		event.Data["miny"] = feature.ForceBbox()[1]
+		event.Data["maxx"] = feature.ForceBbox()[2]
+		event.Data["maxy"] = feature.ForceBbox()[3]
+	} else {
+		log.Printf("Failed to receive bounding box for feature: %v", feature.String())
+	}
 	event.Data["acquiredDate"] = feature.PropertyString("acquiredDate")
 	event.Data["sensorName"] = feature.PropertyString("sensorName")
 	event.Data["link"] = feature.PropertyString("path")
