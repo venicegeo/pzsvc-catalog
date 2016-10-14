@@ -52,7 +52,7 @@ func TestBeachfront(t *testing.T) {
 
 	// NoCache search
 	options := SearchOptions{MinimumIndex: 0, MaximumIndex: -1, NoCache: true}
-	feature := geojson.NewFeature(nil, "", nil)
+	feature := geojson.NewFeature(nil, nil, nil)
 	scenes, _, _ := GetScenes(feature, options)
 	if len(scenes.Scenes.Features) < 1 {
 		t.Error("Where are the images?")

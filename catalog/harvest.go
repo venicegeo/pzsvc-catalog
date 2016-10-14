@@ -124,7 +124,9 @@ func (fl *FeatureLayer) PrepareGeometries() error {
 				}
 			}
 		} else {
+			log.Printf("GeoJSON: %#v", fl.GeoJSON)
 			fc = geojson.FeatureCollectionFromMap(fl.GeoJSON)
+			log.Printf("FC: %#v", fc.String())
 		}
 		if fl.TileMap, err = tilemapFeatures(fc.Features); err != nil {
 			return err

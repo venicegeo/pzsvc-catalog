@@ -50,6 +50,15 @@ func testHarvestProcess(t *testing.T, filename string, doWeCare bool) {
 	if err = ho.Filter.PrepareGeometries(); err != nil {
 		t.Error(err.Error())
 	}
+	// Verify that preparing the geometries did something useful
+	if doWeCare && len(ho.Filter.WhiteList.TileMap) == 0 {
+		t.Error("Created no tiles in WhiteList tilemap")
+		t.FailNow()
+	}
+	if doWeCare && len(ho.Filter.BlackList.TileMap) == 0 {
+		t.Error("Created no tiles in BlackList tilemap")
+		t.FailNow()
+	}
 	c3 = append(c3, append(c2, append(c11, -180, -90), append(c12, 180, 90), append(c13, -180, 90), append(c14, -180, -90)))
 	feature := geojson.NewFeature(geojson.NewPolygon(c3), "99999", nil)
 	if passHarvestFilter(ho, feature) && doWeCare {
