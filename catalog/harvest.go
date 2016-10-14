@@ -73,7 +73,7 @@ func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(
 		Data:        make(map[string]interface{})}
 	event.Data["imageID"] = feature.IDStr()
 	bbox := feature.ForceBbox()
-	if (bbox.Valid() != nil) && (len(bbox) > 3) {
+	if (bbox.Valid() == nil) && (len(bbox) > 3) {
 		event.Data["minx"] = feature.ForceBbox()[0]
 		event.Data["miny"] = feature.ForceBbox()[1]
 		event.Data["maxx"] = feature.ForceBbox()[2]
