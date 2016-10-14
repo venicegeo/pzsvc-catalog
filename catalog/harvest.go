@@ -73,13 +73,13 @@ func issueEvent(options HarvestOptions, feature *geojson.Feature, callback func(
 		Data:        make(map[string]interface{})}
 	event.Data["imageID"] = feature.IDStr()
 	bbox := feature.ForceBbox()
-	if len(bbox) > 0 {
+	if (bbox.Valid() != nil) && (len(bbox) > 3) {
 		event.Data["minx"] = feature.ForceBbox()[0]
 		event.Data["miny"] = feature.ForceBbox()[1]
 		event.Data["maxx"] = feature.ForceBbox()[2]
 		event.Data["maxy"] = feature.ForceBbox()[3]
 	} else {
-		log.Printf("Failed to receive bounding box for feature: %v", feature.String())
+		log.Printf("Failed to receive a valid bounding box for feature %v: %v", feature.IDStr(), feature.String())
 	}
 	event.Data["acquiredDate"] = feature.PropertyString("acquiredDate")
 	event.Data["sensorName"] = feature.PropertyString("sensorName")
