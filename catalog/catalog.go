@@ -80,6 +80,7 @@ func GetScenes(input *geojson.Feature, options SearchOptions) (SceneDescriptors,
 		features   []*geojson.Feature
 		ssc        *redis.StringSliceCmd
 		sc         *redis.StringCmd
+		ic         *redis.IntCmd
 	)
 	if input == nil {
 		return result, "", pzsvc.ErrWithTrace("Input feature must not be nil.")
@@ -137,6 +138,13 @@ func GetScenes(input *geojson.Feature, options SearchOptions) (SceneDescriptors,
 
 		result.SubIndex = cacheName
 		result.Count = len(features)
+		if ic = red.ZCard(cacheName); ic.Err() == nil {
+			result.TotalCount = int(ic.Val())
+			// This implies we have a terminal element
+			if result.TotalCount > result.Count {
+				result.TotalCount--
+			}
+		}
 		result.StartIndex = options.MinimumIndex
 		fc = geojson.NewFeatureCollection(features)
 		result.Scenes = fc
@@ -292,7 +300,7 @@ func populateCache(input *geojson.Feature, cacheName string) {
 		maxAcquiredDate time.Time
 	)
 
-	// registerCache(cacheName) TODO: Fix cache management
+	// registerCache(cacheName)
 
 	if acquiredDateStr := input.PropertyString("acquiredDate"); acquiredDateStr != "" {
 		if acquiredDate, err = time.Parse(time.RFC3339, acquiredDateStr); err != nil {
@@ -306,11 +314,11 @@ func populateCache(input *geojson.Feature, cacheName string) {
 		}
 	}
 
-	if subIndex := input.PropertyString("subIndex"); subIndex == "" {
-		indexName = imageCatalogPrefix
-	} else {
-		indexName = subIndex
-	}
+	// if subIndex := input.PropertyString("subIndex"); subIndex == "" {
+	indexName = imageCatalogPrefix
+	// } else {
+	// 	indexName = subIndex
+	// }
 
 	if acquiredDate.IsZero() && maxAcquiredDate.IsZero() {
 		// Create the cache using a full table scan
