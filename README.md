@@ -145,3 +145,6 @@ When this is working right, the following will occur:
 There is no way to search events by Event Type Name at this time. You need to resolve to an Event Type ID. Once you get this ID, you can call the `/event` endpoint on the gateway with `?eventTypeId=...`
 * Call http://localhost:8080/eventTypeID
 * pzGateway=http://pz-gateway.stage.geointservices.io
+
+
+
