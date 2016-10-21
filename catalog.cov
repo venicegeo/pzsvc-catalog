@@ -199,11 +199,11 @@ github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:154.2,154.13 1 1
 github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:143.73,146.3 2 0
 github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:148.98,150.3 1 1
 github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:151.92,153.3 1 1
-github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:158.40,160.56 2 0
-github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:163.2,165.12 3 0
+github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:158.40,160.56 2 1
+github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:163.2,165.12 3 1
 github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:160.56,162.3 1 0
-github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:169.63,173.57 4 0
-github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:176.2,177.17 2 0
+github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:169.63,173.57 4 1
+github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:176.2,177.17 2 1
 github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:173.57,175.3 1 0
 github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:180.34,189.2 3 1
 github.com/venicegeo/pzsvc-image-catalog/catalog/harvest.go:191.86,199.35 2 1
@@ -326,5 +326,5 @@ github.com/venicegeo/pzsvc-image-catalog/catalog/redis.go:88.3,91.35 3 1
 github.com/venicegeo/pzsvc-image-catalog/catalog/redis.go:91.35,93.4 1 0
 github.com/venicegeo/pzsvc-image-catalog/catalog/redis.go:93.4,96.4 2 1
 github.com/venicegeo/pzsvc-image-catalog/catalog/redis.go:98.9,100.3 1 0
-github.com/venicegeo/pzsvc-image-catalog/catalog/redis.go:123.38,127.2 3 0
-github.com/venicegeo/pzsvc-image-catalog/catalog/redis.go:130.41,134.2 3 0
+github.com/venicegeo/pzsvc-image-catalog/catalog/redis.go:123.38,127.2 3 1
+github.com/venicegeo/pzsvc-image-catalog/catalog/redis.go:130.41,134.2 3 1
