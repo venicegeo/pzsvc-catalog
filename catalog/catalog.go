@@ -18,10 +18,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"math"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -531,22 +529,6 @@ func StoreFeature(feature *geojson.Feature, reharvest bool) (string, error) {
 	z := redis.Z{Score: calculateScore(feature), Member: key}
 	red.ZAdd(imageCatalogPrefix, z)
 
-	// if subindexMap != nil {
-	// 	var overlaps bool
-	// 	for name := range subindexMap {
-	// 		if geosFeature, err := geojsongeos.GeosFromGeoJSON(feature); err == nil {
-	// 			for _, pg := range subindexMap[name].TileMap {
-	// 				if overlaps, err = pg.Overlaps(geosFeature); err != nil {
-	// 					return "", err
-	// 				} else if overlaps {
-	// 					red.ZAdd(name, z)
-	// 				}
-	// 			}
-	// 		} else {
-	// 			return "", err
-	// 		}
-	// 	}
-	// }
 	return key, nil
 }
 
@@ -580,10 +562,10 @@ func SaveFeatureProperties(id string, properties map[string]interface{}) error {
 			feature.Properties[key] = property
 		}
 		if _, err = StoreFeature(feature, true); err != nil {
-			return err
+			return pzsvc.TraceErr(err)
 		}
 	} else {
-		return err
+		return pzsvc.TraceErr(err)
 	}
 	return nil
 }
@@ -641,55 +623,4 @@ func DropIndex() int {
 	}
 	transaction.Del(imageCatalogPrefix)
 	return count
-}
-
-// ImageIOReader returns an io Reader for the requested band
-func ImageIOReader(id, band, key string) (io.Reader, error) {
-	var (
-		feature *geojson.Feature
-		err     error
-	)
-	if feature, err = GetSceneMetadata(id); err != nil {
-		return nil, err
-	}
-	return SceneBandIOReader(feature, band, key)
-}
-
-// SceneBandIOReader returns an io Reader for the requested band
-func SceneBandIOReader(feature *geojson.Feature, band string, key string) (io.Reader, error) {
-	var (
-		result    io.Reader
-		err       error
-		bandsMap  map[string]interface{}
-		urlIfc    interface{}
-		urlString string
-		ok        bool
-		response  *http.Response
-	)
-	if bandsMap, ok = feature.Properties["bands"].(map[string]interface{}); ok {
-		if urlIfc, ok = bandsMap[band]; ok {
-			if urlString, ok = urlIfc.(string); ok {
-				// This now works for PlanetLabs and Landsat.
-				// Others will require additional code.
-				if strings.HasPrefix(feature.IDStr(), "pl:") {
-					if response, err = doPlanetRequest("GET", urlString, key); err != nil {
-						return nil, err
-					}
-				} else {
-					var request *http.Request
-					if request, err = http.NewRequest("GET", urlString, nil); err != nil {
-						return nil, err
-					}
-					if response, err = pzsvc.HTTPClient().Do(request); err != nil {
-						return nil, err
-					}
-				}
-				result = response.Body
-			}
-		}
-	}
-	if ok {
-		return result, nil
-	}
-	return nil, fmt.Errorf("Requested band \"%v\" not found in image %v.", band, feature.ID)
 }

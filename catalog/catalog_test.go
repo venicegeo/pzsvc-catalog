@@ -46,15 +46,15 @@ func TestBeachfront(t *testing.T) {
 	if _, err = GetSceneMetadata(imageID); err != nil {
 		t.Errorf("Expected to find scene")
 	}
-	rc, _ := RedisClient()
-	boolResult := rc.Exists(id)
-	if !boolResult.Val() {
-		t.Errorf("Where is the feature %v?", id)
+	if _, err = StoreFeature(imageDescriptor, false); err == nil {
+		t.Errorf("Expected an error since imageDescriptor is already there")
 	}
-
-	sliceResult := rc.ZRange(prefix, 0, -1)
-	if len(sliceResult.Val()) == 0 {
-		t.Errorf("Why is the ordered set empty? %v", sliceResult.Err())
+	if _, err = StoreFeature(imageDescriptor, true); err != nil {
+		t.Errorf("Expected to re-store image but instead received %v", err.Error())
+	}
+	properties["foo"] = "bar"
+	if err = SaveFeatureProperties(imageID, properties); err != nil {
+		t.Errorf("Failed to save feature properties for %v: %v", id, err.Error())
 	}
 
 	// NoCache search
@@ -86,6 +86,10 @@ func TestBeachfront(t *testing.T) {
 
 	if len(scenes2.Scenes.Features) < 1 {
 		t.Error("Where are the images?")
+	}
+
+	if err = RemoveFeature(imageDescriptor); err != nil {
+		t.Errorf("Failed to remove feature %v: %v", id, err.Error())
 	}
 }
 

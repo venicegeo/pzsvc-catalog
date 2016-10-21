@@ -29,6 +29,17 @@ func TestRedisClient(t *testing.T) {
 		if _, err = b.Result(); err != nil {
 			t.Error(err.Error())
 		}
+		key := prefix + ":SetKey"
+		if err = SetKey(key, "foo"); err != nil {
+			t.Error(err.Error())
+		}
+		var val string
+		if val, err = GetKey(key); err != nil {
+			t.Error(err.Error())
+		} else if val != "foo" {
+			t.Errorf("Expected foo, got %v", val)
+		}
+		c.Del(key)
 	} else {
 		t.Error(err.Error())
 	}

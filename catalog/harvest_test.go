@@ -90,3 +90,15 @@ func testHarvestProcess(t *testing.T, filename string, doWeCare bool) {
 		log.Printf("f: %v", feature.String())
 	}
 }
+
+func TestRecurring(t *testing.T) {
+	var err error
+	ho := HarvestOptions{Recurring: true, Reharvest: true}
+	recurringKey := prefix + ":" + recurringRoot
+	if err = StoreRecurring(recurringKey, ho); err != nil {
+		t.Errorf("Failed to store recurring: %v", err.Error())
+	}
+	if err = DeleteRecurring(recurringKey); err != nil {
+		t.Errorf("Failed to store recurring: %v", err.Error())
+	}
+}
