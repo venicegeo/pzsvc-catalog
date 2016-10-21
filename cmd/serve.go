@@ -99,8 +99,14 @@ func imageHandler(writer http.ResponseWriter, request *http.Request) {
 		bytes, _ := json.Marshal(metadata)
 		writer.Write(bytes)
 	} else {
-		message := fmt.Sprintf("Unable to retrieve metadata for %v: %v", id, err.Error())
-		http.Error(writer, message, http.StatusBadRequest)
+		switch err.Error() {
+		case "redis: nil":
+			message := fmt.Sprintf("Scene %v not found.", id)
+			http.Error(writer, message, http.StatusNotFound)
+		default:
+			message := fmt.Sprintf("Unable to retrieve metadata for %v: %v", id, err.Error())
+			http.Error(writer, message, http.StatusBadRequest)
+		}
 	}
 }
 
