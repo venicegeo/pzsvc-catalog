@@ -494,7 +494,7 @@ func GetSceneMetadata(id string) (*geojson.Feature, error) {
 				return GetSceneMetadata(parts[1])
 			}
 		}
-		return nil, errors.New("redis: nil even using wildcard search")
+		return nil, errors.New("redis: nil")
 	}
 	metadataString := stringCmd.Val()
 	return geojson.FeatureFromBytes([]byte(metadataString))

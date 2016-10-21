@@ -22,6 +22,7 @@ import (
 )
 
 const prefix = "catalog-test"
+const imageID = "12345"
 
 func TestBeachfront(t *testing.T) {
 	var (
@@ -32,12 +33,18 @@ func TestBeachfront(t *testing.T) {
 	properties["name"] = "Whatever"
 
 	SetImageCatalogPrefix(prefix)
-	imageDescriptor := geojson.NewFeature(nil, "12345", properties)
+	if _, err = GetSceneMetadata(imageID); err == nil {
+		t.Errorf("Expected to not find scene")
+	}
+	imageDescriptor := geojson.NewFeature(nil, imageID, properties)
 	if id, err = StoreFeature(imageDescriptor, false); err != nil {
 		t.Errorf("Failed to store feature: %v", err.Error())
 	}
 	if indexSize := IndexSize(); indexSize != 1 {
 		t.Errorf("expected index size of 1, got %v", indexSize)
+	}
+	if _, err = GetSceneMetadata(imageID); err != nil {
+		t.Errorf("Expected to find scene")
 	}
 	rc, _ := RedisClient()
 	boolResult := rc.Exists(id)
