@@ -47,6 +47,7 @@ type HarvestOptions struct {
 	PiazzaAuthorization string        `json:"pzAuth"`
 	Filter              HarvestFilter `json:"filter"`
 	Cap                 int           `json:"cap"`
+	URLRoot             string        `json:"urlRoot"`
 	Recurring           bool          `json:"recurring"`
 	RequestPageSize     int           `json:"requestPageSize"`
 	callback            harvestCallback

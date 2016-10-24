@@ -191,6 +191,9 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) (
 		properties["acquiredDate"] = adString
 		properties["fileFormat"] = "geotiff"
 		properties["sensorName"] = "Landsat8"
+		if options.URLRoot != "" {
+			properties["link"] = options.URLRoot + "/image/" + id
+		}
 		bands := make(map[string]string)
 		bands["coastal"] = url + id + "_B1.TIF"
 		bands["blue"] = url + id + "_B2.TIF"
@@ -209,6 +212,10 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) (
 		if _, err = StoreFeature(feature, options.Reharvest); err != nil {
 			pzsvc.TraceErr(err)
 			break
+		}
+		var b []byte
+		if b, err = geojson.Write(feature); err != nil {
+			log.Printf("Storing: %v", string(b))
 		}
 		count++
 		if options.Event {

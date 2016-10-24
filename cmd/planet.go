@@ -40,6 +40,8 @@ func planetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	options.URLRoot = r.Host
+
 	options.PiazzaAuthorization = r.Header.Get("Authorization")
 
 	// Let's test the credentials before we do anything else
