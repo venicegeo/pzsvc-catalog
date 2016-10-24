@@ -36,6 +36,9 @@ func RedisClient() (*redis.Client, error) {
 			return nil, err
 		}
 		client = redis.NewClient(vcapServices.RedisOptions())
+		if sc := client.Info(); sc.Err() != nil {
+			RedisError(client, sc.Err())
+		}
 	}
 	return client, nil
 }

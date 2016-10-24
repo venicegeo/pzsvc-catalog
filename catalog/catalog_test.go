@@ -32,6 +32,10 @@ func TestBeachfront(t *testing.T) {
 	properties := make(map[string]interface{})
 	properties["name"] = "Whatever"
 
+	if _, err = RedisClient(); err != nil {
+		t.Fatal("Can't find Redis.")
+	}
+
 	SetImageCatalogPrefix(prefix)
 	if _, err = GetSceneMetadata(imageID); err == nil {
 		t.Errorf("Expected to not find scene")
