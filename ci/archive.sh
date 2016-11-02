@@ -20,11 +20,11 @@ gometalinter --install
 
 go get -v github.com/venicegeo/pzsvc-image-catalog/...
 
-cd $GOPATH/src/github.com/venicegeo/pzsvc-image-catalog/bf
+cd $GOPATH/src/github.com/venicegeo/pzsvc-image-catalog
 
 # run unit tests w/ coverage collection
-go test -v -coverprofile=geojson.cov github.com/venicegeo/geojson-go/geojson
-go test -v -coverprofile=catalog.cov github.com/venicegeo/pzsvc-image-catalog
+go test -v -coverprofile=catalog.cov github.com/venicegeo/pzsvc-image-catalog/catalog
+go test -v -coverprofile=cmd.cov github.com/venicegeo/pzsvc-image-catalog/cmd
 
 # lint
 gometalinter \
@@ -49,7 +49,7 @@ cd $root
 cp $GOPATH/bin/$APP ./$APP.bin
 tar cvzf $APP.$EXT \
     $APP.bin \
-    geojson.cov \
+    cmd.cov \
 	catalog.cov \
     lint.txt
 tar tzf $APP.$EXT
