@@ -24,7 +24,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
-	"github.com/venicegeo/pzsvc-lib"
 
 	"gopkg.in/redis.v3"
 )
@@ -36,6 +35,10 @@ func serve() {
 		client *redis.Client
 		err    error
 	)
+
+	// TODO: Read IDAM from environment
+	catalog.SetIDAM(catalog.TestIDAM{})
+
 	if client, err = catalog.RedisClient(); err != nil {
 		log.Fatalf("Failed to create Redis client: %v", err.Error())
 	}
@@ -73,19 +76,9 @@ func serve() {
 }
 
 func dropIndexHandler(w http.ResponseWriter, r *http.Request) {
-	var (
-		err       error
-		pzGateway string
-		pzAuth    string
-	)
-	pzGateway = r.FormValue("pzGateway")
-	pzAuth = r.Header.Get("Authorization")
-	if err = pzsvc.TestPiazzaAuth(pzGateway, pzAuth); err != nil {
-		if httpError, ok := err.(*pzsvc.HTTPError); ok {
-			http.Error(w, httpError.Message, httpError.Status)
-		} else {
-			http.Error(w, "Unable to attempt authentication: "+err.Error(), http.StatusInternalServerError)
-		}
+	// Let's test the credentials before we do anything else
+	if !catalog.Authorize(r.Header.Get("Authorization"), "beachfront.dropIndex") {
+		http.Error(w, "Unauthorized.", http.StatusUnauthorized)
 		return
 	}
 	response := catalog.DropIndex()

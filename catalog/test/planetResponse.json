@@ -1,0 +1,212 @@
+{
+  "count": 789532,
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -30.1205600819544,
+              -80.9376950593096
+            ],
+            [
+              -28.8482428523993,
+              -82.6530078144412
+            ],
+            [
+              -42.4641421037572,
+              -82.6536712559093
+            ],
+            [
+              -41.1850239086407,
+              -80.9362333399655
+            ],
+            [
+              -30.1205600819544,
+              -80.9376950593096
+            ]
+          ]
+        ]
+      },
+      "type": "Feature",
+      "id": "LC81531222016303LGN00",
+      "properties": {
+        "links": {
+          "self": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00",
+          "thumbnail": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/thumb"
+        },
+        "cloud_cover": {
+          "estimated": 12.97
+        },
+        "sun": {
+          "altitude": 10.34243665,
+          "azimuth": 114.34525697
+        },
+        "landsat": {
+          "path": 153,
+          "data_type": "L1GT",
+          "row": 122
+        },
+        "image_statistics": {
+          "gsd": 30
+        },
+        "acquired": "2016-10-29T06:35:11.579070+00:00",
+        "camera": {
+          "bit_depth": 12
+        },
+        "provider": "landsat",
+        "sat": {
+          "alt": 720,
+          "id": "LANDSAT_8",
+          "off_nadir": 0
+        },
+        "data": {
+          "products": {
+            "band_10": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_10"
+            },
+            "band_11": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_11"
+            },
+            "band_6": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_6"
+            },
+            "band_7": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_7"
+            },
+            "band_4": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_4"
+            },
+            "band_5": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_5"
+            },
+            "band_2": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_2"
+            },
+            "band_3": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_3"
+            },
+            "band_1": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_1"
+            },
+            "band_8": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_8"
+            },
+            "band_9": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531222016303LGN00/full?product=band_9"
+            }
+          }
+        },
+        "published": "2016-10-29T06:35:11.579070+00:00"
+      }
+    },
+    {
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -21.0992453202691,
+              -80.6917733333575
+            ],
+            [
+              -17.9339599165941,
+              -82.3518274552904
+            ],
+            [
+              -31.0625920423798,
+              -82.6802539248989
+            ],
+            [
+              -31.9021767003794,
+              -80.9597286239883
+            ],
+            [
+              -21.0992453202691,
+              -80.6917733333575
+            ]
+          ]
+        ]
+      },
+      "type": "Feature",
+      "id": "LC81531212016303LGN00",
+      "properties": {
+        "links": {
+          "self": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00",
+          "thumbnail": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/thumb"
+        },
+        "cloud_cover": {
+          "estimated": 11.86
+        },
+        "sun": {
+          "altitude": 11.65576984,
+          "azimuth": 104.49615301
+        },
+        "landsat": {
+          "path": 153,
+          "data_type": "L1GT",
+          "row": 121
+        },
+        "image_statistics": {
+          "gsd": 30
+        },
+        "acquired": "2016-10-29T06:34:47.590605+00:00",
+        "camera": {
+          "bit_depth": 12
+        },
+        "provider": "landsat",
+        "sat": {
+          "alt": 720,
+          "id": "LANDSAT_8",
+          "off_nadir": 0
+        },
+        "data": {
+          "products": {
+            "band_10": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_10"
+            },
+            "band_11": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_11"
+            },
+            "band_6": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_6"
+            },
+            "band_7": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_7"
+            },
+            "band_4": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_4"
+            },
+            "band_5": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_5"
+            },
+            "band_2": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_2"
+            },
+            "band_3": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_3"
+            },
+            "band_1": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_1"
+            },
+            "band_8": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_8"
+            },
+            "band_9": {
+              "full": "https://api.planet.com/v0/scenes/landsat/LC81531212016303LGN00/full?product=band_9"
+            }
+          }
+        },
+        "published": "2016-10-29T06:34:47.590605+00:00"
+      }
+    }
+  ],
+  "links": {
+    "self": "https://api.planet.com/v0/scenes/landsat/?count=2",
+    "prev": "https://api.planet.com/v0/scenes/landsat/?count=2&_page.acquired.gt=2016-10-29T06%3A35%3A11.579070%2B00%3A00",
+    "first": "https://api.planet.com/v0/scenes/landsat/?count=2",
+    "next": "https://api.planet.com/v0/scenes/landsat/?count=2&_page.acquired.lt=2016-10-29T06%3A34%3A47.590605%2B00%3A00"
+  }
+}

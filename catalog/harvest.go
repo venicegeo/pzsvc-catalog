@@ -26,7 +26,7 @@ import (
 	"github.com/venicegeo/pzsvc-lib"
 )
 
-type harvestCallback func(*geojson.FeatureCollection, HarvestOptions) (int, error)
+// type harvestCallback func(*geojson.FeatureCollection, HarvestOptions) (int, error)
 
 const recurringRoot = "beachfront:harvest:recurrence"
 
@@ -50,7 +50,6 @@ type HarvestOptions struct {
 	URLRoot             string        `json:"urlRoot"`
 	Recurring           bool          `json:"recurring"`
 	RequestPageSize     int           `json:"requestPageSize"`
-	callback            harvestCallback
 	EventTypeID         string
 }
 
@@ -149,8 +148,10 @@ func passHarvestFilter(options HarvestOptions, feature *geojson.Feature) bool {
 	if intersects, err = options.Filter.BlackList.Intersects(harvestGeom); err != nil || intersects {
 		return false
 	}
-	if disjoint, err = options.Filter.WhiteList.Disjoint(harvestGeom); err != nil || disjoint {
-		return false
+	if len(options.Filter.WhiteList.TileMap) > 0 {
+		if disjoint, err = options.Filter.WhiteList.Disjoint(harvestGeom); err != nil || disjoint {
+			return false
+		}
 	}
 	return true
 }

@@ -31,16 +31,99 @@ import (
 
 const baseURLString = "https://api.planet.com/"
 
+type planetResults struct {
+	fc   *geojson.FeatureCollection
+	next string
+	err  error
+}
+
+// PlanetResponse represents the response JSON structure.
+type PlanetResponse struct {
+	Count string      `json:"auth"`
+	Links PlanetLinks `json:"links"`
+}
+
+// PlanetLinks represents the links JSON structure.
+type PlanetLinks struct {
+	Self  string `json:"self"`
+	Prev  string `json:"prev"`
+	Next  string `json:"next"`
+	First string `json:"first"`
+}
+
 // HarvestPlanet harvests Planet Labs
 func HarvestPlanet(options HarvestOptions) {
+	harvestPlanetLandsat(options)
+	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
+	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
+}
+func harvestPlanetLandsat(options HarvestOptions) {
+	var (
+		count      int
+		totalCount int
+		err        error
+		done       bool
+	)
 	requestPageSize := 1000
 	if options.RequestPageSize > 0 && options.RequestPageSize < requestPageSize {
 		requestPageSize = options.RequestPageSize
 	}
-	// harvestPlanetEndpoint("v0/scenes/ortho/?count=1000", storePlanetOrtho)
-	options.callback = storePlanetLandsat
-	harvestPlanetEndpoint(fmt.Sprintf("v0/scenes/landsat/?count=%v", requestPageSize), options)
-	// harvestPlanetEndpoint("v0/scenes/rapideye/?count=1000", storePlanetRapidEye)
+	resultsChannel := make(chan planetResults)
+	url := fmt.Sprintf("v0/scenes/landsat/?count=%v", requestPageSize)
+	for {
+		if done {
+			break
+		}
+		go harvestPlanetOperation(url, options, resultsChannel)
+		results := <-resultsChannel
+		if results.err == nil {
+			count = len(results.fc.Features)
+			switch count {
+			case 0:
+				done = true
+				break
+			default:
+				if count, err = storePlanetLandsat(results.fc, options); err != nil {
+					log.Printf("%v", err.Error())
+					return
+				}
+				totalCount += count
+				if (options.Cap > 0) && (IndexSize() >= int64(options.Cap)) {
+					done = true
+					break
+				}
+				url = results.next
+			}
+		} else {
+			log.Printf("%v", results.err.Error())
+		}
+	}
+	log.Printf("Harvested %v scenes for a total size of %v.", totalCount, IndexSize())
+}
+
+func harvestPlanetOperation(endpoint string, options HarvestOptions, resultsChannel chan planetResults) {
+	fmt.Printf("Harvesting %v\n", endpoint)
+	var (
+		response       *http.Response
+		fc             *geojson.FeatureCollection
+		planetResponse PlanetResponse
+		results        planetResults
+		err            error
+	)
+	if response, err = doPlanetRequest("GET", endpoint, options.PlanetKey); err != nil {
+		results.err = err
+		resultsChannel <- results
+		return
+	}
+
+	if planetResponse, fc, err = unmarshalPlanetResponse(response); err != nil {
+		results.err = err
+		resultsChannel <- results
+		return
+	}
+	results.fc = fc
+	results.next = planetResponse.Links.Next
+	resultsChannel <- results
 }
 
 // doPlanetRequest performs the request
@@ -108,67 +191,33 @@ func getPlanetAuth(key string) string {
 	return result
 }
 
-// PlanetResponse represents the response JSON structure.
-type PlanetResponse struct {
-	Count string      `json:"auth"`
-	Links PlanetLinks `json:"links"`
-}
-
-// PlanetLinks represents the links JSON structure.
-type PlanetLinks struct {
-	Self  string `json:"self"`
-	Prev  string `json:"prev"`
-	Next  string `json:"next"`
-	First string `json:"first"`
-}
-
-func harvestPlanetEndpoint(endpoint string, options HarvestOptions) {
-	var (
-		err   error
-		count int
-		curr  int
-	)
-	for err == nil && (endpoint != "") {
-		var (
-			next        string
-			responseURL *url.URL
-		)
-		next, curr, err = harvestPlanetOperation(endpoint, options)
-		count += curr
-		if (len(next) == 0) || (err != nil) {
-			break
-		}
-		responseURL, err = url.Parse(next)
-		endpoint = responseURL.RequestURI()
-		if (options.Cap > 0) && (count >= options.Cap) {
-			break
-		}
-	}
-	if err != nil {
-		log.Print(err.Error())
-	}
-	log.Printf("Harvested %v scenes for a total size of %v.", count, IndexSize())
-}
-
-func harvestPlanetOperation(endpoint string, options HarvestOptions) (string, int, error) {
-	fmt.Printf("Harvesting %v\n", endpoint)
-	var (
-		response       *http.Response
-		fc             *geojson.FeatureCollection
-		planetResponse PlanetResponse
-		err            error
-		count          int
-	)
-	if response, err = doPlanetRequest("GET", endpoint, options.PlanetKey); err != nil {
-		return "", 0, err
-	}
-
-	if planetResponse, fc, err = unmarshalPlanetResponse(response); err != nil {
-		return "", 0, err
-	}
-	count, err = options.callback(fc, options)
-	return planetResponse.Links.Next, count, err
-}
+// func harvestPlanetEndpoint(endpoint string, options HarvestOptions, channel chan planetResults) {
+// 	var (
+// 		err   error
+// 		count int
+// 		curr  int
+// 	)
+// 	for err == nil && (endpoint != "") {
+// 		var (
+// 			next        string
+// 			responseURL *url.URL
+// 		)
+// 		next, curr, err = harvestPlanetOperation(endpoint, options)
+// 		count += curr
+// 		if (len(next) == 0) || (err != nil) {
+// 			break
+// 		}
+// 		responseURL, err = url.Parse(next)
+// 		endpoint = responseURL.RequestURI()
+// 		if (options.Cap > 0) && (count >= options.Cap) {
+// 			break
+// 		}
+// 	}
+// 	if err != nil {
+// 		log.Print(err.Error())
+// 	}
+// 	log.Printf("Harvested %v scenes for a total size of %v.", count, IndexSize())
+// }
 
 func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) (int, error) {
 	var (

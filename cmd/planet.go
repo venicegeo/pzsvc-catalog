@@ -45,12 +45,8 @@ func planetHandler(w http.ResponseWriter, r *http.Request) {
 	options.PiazzaAuthorization = r.Header.Get("Authorization")
 
 	// Let's test the credentials before we do anything else
-	if err = pzsvc.TestPiazzaAuth(options.PiazzaGateway, options.PiazzaAuthorization); err != nil {
-		if httpError, ok := err.(*pzsvc.HTTPError); ok {
-			http.Error(w, httpError.Message, httpError.Status)
-		} else {
-			http.Error(w, "Unable to attempt authentication: "+err.Error(), http.StatusInternalServerError)
-		}
+	if !catalog.Authorize(options.PiazzaAuthorization, "beachfront.harvest") {
+		http.Error(w, "Unauthorized.", http.StatusUnauthorized)
 		return
 	}
 

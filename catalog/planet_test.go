@@ -28,9 +28,10 @@ func TestPlanet(t *testing.T) {
 		err            error
 		response       *http.Response
 		fc             *geojson.FeatureCollection
+		options        HarvestOptions
 	)
 
-	if response, err = doPlanetRequest("GET", "v0/scenes/ortho/", ""); err != nil {
+	if response, err = doPlanetRequest("GET", "v0/scenes/landsat/", ""); err != nil {
 		t.Error(err)
 	}
 	if planetResponse, fc, err = unmarshalPlanetResponse(response); err != nil {
@@ -43,6 +44,12 @@ func TestPlanet(t *testing.T) {
 	default:
 		t.Errorf("%#v\n", planetResponse)
 	}
+	if _, err = storePlanetLandsat(fc, options); err != nil {
+		t.Error(err)
+	}
+	options.Cap = 100
+	HarvestPlanet(options)
+	DropIndex()
 }
 
 func TestRecurringURL(t *testing.T) {
