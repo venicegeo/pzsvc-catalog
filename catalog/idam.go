@@ -17,6 +17,7 @@ package catalog
 // IDAM is an interface for providing authentication and authorization
 type IDAM interface {
 	authorize(token, role string) bool
+	authenticate(authorization string) (bool, string)
 }
 
 var myIdam IDAM
@@ -24,6 +25,14 @@ var myIdam IDAM
 // SetIDAM sets the IDAM for this application
 func SetIDAM(idam IDAM) {
 	myIdam = idam
+}
+
+// Authenticate returns true and a token if the authorization string is valid
+func Authenticate(authorization string) (bool, string) {
+	if myIdam == nil {
+		return false, ""
+	}
+	return myIdam.authenticate(authorization)
 }
 
 // Authorize returns true if the token is authorized to perform the role provided
@@ -44,4 +53,11 @@ func (idam TestIDAM) authorize(token, role string) bool {
 		return false
 	}
 	return true
+}
+
+func (idam TestIDAM) authenticate(authorization string) (bool, string) {
+	if authorization == "never" {
+		return false, ""
+	}
+	return true, "foo"
 }

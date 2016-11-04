@@ -48,6 +48,7 @@ func TestPlanet(t *testing.T) {
 		t.Error(err)
 	}
 	options.Cap = 100
+	options.URLRoot = "localhost:8080"
 	HarvestPlanet(options)
 	DropIndex()
 }

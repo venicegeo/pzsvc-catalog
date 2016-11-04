@@ -191,34 +191,6 @@ func getPlanetAuth(key string) string {
 	return result
 }
 
-// func harvestPlanetEndpoint(endpoint string, options HarvestOptions, channel chan planetResults) {
-// 	var (
-// 		err   error
-// 		count int
-// 		curr  int
-// 	)
-// 	for err == nil && (endpoint != "") {
-// 		var (
-// 			next        string
-// 			responseURL *url.URL
-// 		)
-// 		next, curr, err = harvestPlanetOperation(endpoint, options)
-// 		count += curr
-// 		if (len(next) == 0) || (err != nil) {
-// 			break
-// 		}
-// 		responseURL, err = url.Parse(next)
-// 		endpoint = responseURL.RequestURI()
-// 		if (options.Cap > 0) && (count >= options.Cap) {
-// 			break
-// 		}
-// 	}
-// 	if err != nil {
-// 		log.Print(err.Error())
-// 	}
-// 	log.Printf("Harvested %v scenes for a total size of %v.", count, IndexSize())
-// }
-
 func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) (int, error) {
 	var (
 		count int

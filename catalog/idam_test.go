@@ -18,16 +18,24 @@ import "testing"
 
 func TestIDAMPlanet(t *testing.T) {
 	var (
-		idam TestIDAM
+		idam          TestIDAM
+		authenticated bool
+		token         string
 	)
 
 	SetIDAM(idam)
 
-	if !Authorize("", "") {
+	if authenticated, token = Authenticate("never"); authenticated {
+		t.Error("Expected not to be authenticated")
+	}
+	if authenticated, token = Authenticate("foo"); !authenticated {
+		t.Error("Expected to be authenticated")
+	}
+	if !Authorize(token, "bar") {
 		t.Error("Expected to be authorized")
 	}
 
-	if Authorize("", "never") {
+	if Authorize(token, "never") {
 		t.Error("Expected not to be authorized")
 	}
 }

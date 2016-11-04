@@ -45,7 +45,15 @@ func planetHandler(w http.ResponseWriter, r *http.Request) {
 	options.PiazzaAuthorization = r.Header.Get("Authorization")
 
 	// Let's test the credentials before we do anything else
-	if !catalog.Authorize(options.PiazzaAuthorization, "beachfront.harvest") {
+	var (
+		token string
+		valid bool
+	)
+	if valid, token = catalog.Authenticate(r.Header.Get("Authorization")); !valid {
+		http.Error(w, "Failed to authenticate.", http.StatusUnauthorized)
+		return
+	}
+	if !catalog.Authorize(token, "beachfront.dropIndex") {
 		http.Error(w, "Unauthorized.", http.StatusUnauthorized)
 		return
 	}
