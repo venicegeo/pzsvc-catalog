@@ -215,6 +215,7 @@ func storePlanetLandsat(fc *geojson.FeatureCollection, options HarvestOptions) (
 			break
 		}
 		count++
+		println(options.Event)
 		if options.Event {
 			cb := func(err error) {
 				if err != nil {

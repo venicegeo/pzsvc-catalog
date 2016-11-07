@@ -12,31 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package catalog
+package cmd
 
 import (
-	"log"
+	"github.com/venicegeo/pzsvc-image-catalog/catalog"
+	//"github.com/venicegeo/pzsvc-lib"
+	//"net/http"
 	"os"
 	"testing"
 )
 
-// TestRedisClient tests the Redis connection
-func TestRedisClient(t *testing.T) {
-	SetMockConnCount(0)
+func TestServe(t *testing.T) {
+	catalog.SetMockConnCount(0)
 	outputs := []string{}
-	client = MakeMockRedisCli(outputs)
-
+	catalog.MakeMockRedisCli(outputs)
+	//taskChan = make(chan string)
 	os.Setenv("VCAP_SERVICES", "{\"p-redis\":[{\"credentials\":{\"host\":\"127.0.0.1\",\"port\":6379}}]}")
 	os.Setenv("PL_API_KEY", "a1fa3d8df30545468052e45ae9e4520e")
-	vcapServicesStr := os.Getenv("VCAP_SERVICES")
-	log.Printf("VCAP_SERVICES: %v", vcapServicesStr)
-	var VCapServHolder VcapServices
-	var VCapRedHolder []VcapRedis
-
-	VCapServHolder.Redis = VCapRedHolder
-	VCapServHolder.RedisOptions()
-	SetKey("Rubber", "Duckies")
-	_, _ = GetKey("Duckies")
-	_, _ = GetKey("Rubber")
-
+	serve()
 }

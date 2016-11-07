@@ -102,6 +102,7 @@ func GetScenes(input *geojson.Feature, options SearchOptions) (SceneDescriptors,
 	}
 
 	// See if we can complete the requested query
+	println("1")
 	complete := false
 	for !complete {
 		complete = completeCache(cacheName, options)

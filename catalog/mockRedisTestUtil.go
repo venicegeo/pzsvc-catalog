@@ -143,3 +143,6 @@ func RedisConvString(val string) string {
 func RedisConvErrStr(val string) string {
 	return fmt.Sprintf("-%s\r\n", val)
 }
+func RedusConvArray() string {
+	return "*0\r\n"
+}
