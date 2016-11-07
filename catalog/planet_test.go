@@ -15,9 +15,11 @@
 package catalog
 
 import (
+	"encoding/json"
 	"github.com/paulsmith/gogeos/geos"
 	//	"github.com/venicegeo/geojson-geos-go/geojsongeos"
 	"github.com/venicegeo/geojson-go/geojson"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"testing"
@@ -103,104 +105,39 @@ func TestHarvestPlanet(t *testing.T) {
 
 func TestStorePlanetLandsat(t *testing.T) {
 	var harvestOptionsHolder HarvestOptions
-	var harvestFilterHolder HarvestFilter
-	var whitelist FeatureLayer
-	var blacklist FeatureLayer
-	var line1, line2 *geos.Geometry
+	var pathHolder [3]string
+	//pathHolder[0] = "../data/harvest_options1.json"
+	pathHolder[0] = "../data/harvest_options2.json"
+	pathHolder[2] = "../data/harvest_options3.json"
+	for _, path := range pathHolder {
 
-	var geoCollectionHolder *geojson.FeatureCollection
-	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type": "Feature",   "properties": {},"geometry":{"type":"Polygon","coordinates":[[[1,5],[2,5],[2,6],[1,6],[1,5]]]}}]}`))
+		bytes, _ := ioutil.ReadFile(path)
 
-	//var err error
-	line1, _ = geos.FromWKT("LINESTRING(5 0, 15 15, 17 17)")
-	line2, _ = geos.FromWKT("LINESTRING(5 0, 15 15, 17 17)")
-	whitelist.FeatureType = "test"
-	whitelist.GeoJSON = geoCollectionHolder.Map()
-	whitelist.TileMap = map[string]*geos.Geometry{"Testing": line1}
-	whitelist.WfsURL = "Test.com"
-	blacklist.FeatureType = "test"
-	blacklist.GeoJSON = geoCollectionHolder.Map()
-	blacklist.TileMap = map[string]*geos.Geometry{"Testing": line2}
-	blacklist.WfsURL = "Test.com"
+		_ = json.Unmarshal(bytes, &harvestOptionsHolder)
 
-	harvestFilterHolder.BlackList = blacklist
-	harvestFilterHolder.WhiteList = whitelist
-
-	harvestOptionsHolder.Event = false
-	harvestOptionsHolder.Reharvest = false
-	harvestOptionsHolder.PlanetKey = "aaaaaaaaaaaaaaaaaaaaaa1111"
-	harvestOptionsHolder.PiazzaGateway = "Test.com"
-	harvestOptionsHolder.PiazzaAuthorization = "Test123"
-	harvestOptionsHolder.Filter = harvestFilterHolder
-	harvestOptionsHolder.Cap = 25
-	harvestOptionsHolder.URLRoot = "systems"
-	harvestOptionsHolder.Recurring = false
-	harvestOptionsHolder.RequestPageSize = 10
-	harvestOptionsHolder.callback = nil
-	harvestOptionsHolder.EventTypeID = "abc123"
-
-	/*
-		var tester bool
-		var err error
-		var harvestGeom *geos.Geometry
-		for _, curr := range geoCollectionHolder.Features {
-		curr.Properties["cloud_cover"].(map[string]interface{})["estimated"] = 6.63
-		curr.Properties["image_statistics"].(map[string]interface{})["gsd"] = 24.
-		curr.Properties["acquired"] = "yes"
-		curr.ID = "123abc"
-		tester = passHarvestFilter(harvestOptionsHolder, curr)
-		t.Log(tester)
-		harvestGeom, _ = geojsongeos.GeosFromGeoJSON(curr)
-		tester, err = whitelist.Disjoint(harvestGeom)
-		t.Log(tester)
-		t.Log(err)
-		tester, err = blacklist.Intersects(harvestGeom)
-		t.Log(tester)
-		t.Log(err)
-
-	}*/
-	_, _ = storePlanetLandsat(geoCollectionHolder, harvestOptionsHolder)
-
+		_ = harvestOptionsHolder.Filter.PrepareGeometries()
+		var geoCollectionHolder *geojson.FeatureCollection
+		geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type":"Feature","geometry":{"coordinates":[[-41.68380384,-3.86901559],[-41.68344951,-3.86733807],[-41.68361042,-3.86726774],[-41.68384764,-3.86719616],[-41.68413582,-3.86716065],[-41.68444963,-3.86719857],[-41.68476372,-3.86734723],[-41.68505276,-3.86764398],[-41.68529141,-3.86812615],[-41.68537007,-3.86836772],[-41.68542289,-3.8685737],[-41.68544916,-3.86875115],[-41.68544817,-3.86890711],[-41.6854192,-3.86904862],[-41.68536156,-3.86918273],[-41.68527452,-3.86931649],[-41.68515738,-3.86945693],[-41.68495458,-3.86964114],[-41.68475013,-3.86975328],[-41.68454967,-3.8697952],[-41.68435881,-3.86976873],[-41.68418317,-3.86967571],[-41.68402839,-3.86951795],[-41.68390007,-3.8692973],[-41.68380384,-3.86901559]],"type":"LineString"},"properties":{"24hrMaxTide":"4.272558868170382","24hrMinTide":"2.4257490639311676","algoCmd":"ossim-cli shoreline --image img1.TIF,img2.TIF --projection geo-scaled --prop 24hrMinTide:2.4257490639311676 --prop resolution:30 --prop classification:Unclassified --prop dataUsage:Not_to_be_used_for_navigational_or_targeting_purposes. --prop sensorName:Landsat8 --prop 24hrMaxTide:4.272558868170382 --prop currentTide:3.4136017245233523 --prop sourceID:landsat:LC82190622016285LGN00 --prop dateTimeCollect:2016-10-11T12:59:05.157475+00:00 shoreline.geojson","algoName":"BF_Algo_NDWI","algoProcTime":"20161031.133058.4026","algoVersion":"0.0","classification":"Unclassified","currentTide":"3.4136017245233523","dataUsage":"Not_to_be_used_for_navigational_or_targeting_purposes.","dateTimeCollect":"2016-10-11T12:59:05.157475+00:00","resolution":"30","sensorName":"Landsat8","sourceID":"landsat:LC82190622016285LGN00"}}]}`))
+		t.Log(geoCollectionHolder)
+		_, _ = storePlanetLandsat(geoCollectionHolder, harvestOptionsHolder)
+	}
 }
 
 func TestPlanetRecurring(t *testing.T) {
 	var harvestOptionsHolder HarvestOptions
-	var harvestFilterHolder HarvestFilter
-	var whitelist FeatureLayer
-	var blacklist FeatureLayer
-	var line1, line2 *geos.Geometry
+	var pathHolder [3]string
+	pathHolder[0] = "../data/harvest_options1.json"
+	pathHolder[1] = "../data/harvest_options2.json"
+	pathHolder[2] = "../data/harvest_options3.json"
+	for _, path := range pathHolder {
 
-	var geoCollectionHolder *geojson.FeatureCollection
-	geoCollectionHolder, _ = geojson.FeatureCollectionFromBytes([]byte(`{"type": "FeatureCollection","features":[{"type": "Feature",   "properties": {},"geometry":{"type":"Polygon","coordinates":[[[1,5],[2,5],[2,6],[1,6],[1,5]]]}}]}`))
+		bytes, _ := ioutil.ReadFile(path)
 
-	//var err error
-	line1, _ = geos.FromWKT("LINESTRING(5 0, 15 15, 17 17)")
-	line2, _ = geos.FromWKT("LINESTRING(5 0, 15 15, 17 17)")
-	whitelist.FeatureType = "test"
-	whitelist.GeoJSON = geoCollectionHolder.Map()
-	whitelist.TileMap = map[string]*geos.Geometry{"Testing": line1}
-	whitelist.WfsURL = "Test.com"
-	blacklist.FeatureType = "test"
-	blacklist.GeoJSON = geoCollectionHolder.Map()
-	blacklist.TileMap = map[string]*geos.Geometry{"Testing": line2}
-	blacklist.WfsURL = "Test.com"
+		_ = json.Unmarshal(bytes, &harvestOptionsHolder)
 
-	harvestFilterHolder.BlackList = blacklist
-	harvestFilterHolder.WhiteList = whitelist
+		_ = harvestOptionsHolder.Filter.PrepareGeometries()
 
-	harvestOptionsHolder.Event = false
-	harvestOptionsHolder.Reharvest = false
-	harvestOptionsHolder.PlanetKey = "aaaaaaaaaaaaaaaaaaaaaa1111"
-	harvestOptionsHolder.PiazzaGateway = "https://pz-gateway.geointservices.io"
-	harvestOptionsHolder.PiazzaAuthorization = "Test123"
-	harvestOptionsHolder.Filter = harvestFilterHolder
-	harvestOptionsHolder.Cap = 25
-	harvestOptionsHolder.URLRoot = "systems"
-	harvestOptionsHolder.Recurring = false
-	harvestOptionsHolder.RequestPageSize = 10
-	harvestOptionsHolder.callback = nil
-	harvestOptionsHolder.EventTypeID = "abc123"
-
-	_, _, _ = PlanetRecurring("test.com", harvestOptionsHolder)
+		_, _, _ = PlanetRecurring("test.com", harvestOptionsHolder)
+	}
 
 }
