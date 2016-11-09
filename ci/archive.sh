@@ -25,6 +25,9 @@ cd $GOPATH/src/github.com/venicegeo/pzsvc-image-catalog
 # run unit tests w/ coverage collection
 go test -v -coverprofile=catalog.cov github.com/venicegeo/pzsvc-image-catalog/catalog
 go test -v -coverprofile=cmd.cov github.com/venicegeo/pzsvc-image-catalog/cmd
+cp ./catalog.cov $root/catalog.cov
+cp ./cmd.cov $root/cmd.cov
+
 
 # lint
 gometalinter \
@@ -55,16 +58,8 @@ tar cvzf $APP.$EXT \
 tar tzf $APP.$EXT
 
 
+#src=$GOPATH/bin/pzsvc-image-catalog
+#mv $src $root/$APP.$EXT
 
-
-
-
-
-
-
-
-src=$GOPATH/bin/pzsvc-image-catalog
-mv $src $root/$APP.$EXT
-
-go test -v -coverprofile=geojson.cov github.com/venicegeo/geojson-go/geojson
-go test -v -coverprofile=catalog.cov github.com/venicegeo/pzsvc-image-catalog
+#go test -v -coverprofile=geojson.cov github.com/venicegeo/geojson-go/geojson
+#go test -v -coverprofile=catalog.cov github.com/venicegeo/pzsvc-image-catalog
