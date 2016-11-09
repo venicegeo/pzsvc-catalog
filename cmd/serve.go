@@ -29,18 +29,19 @@ import (
 	"gopkg.in/redis.v3"
 )
 
-func serve() {
+func serve(redisClient *redis.Client) {
 
 	portStr := ":8080"
 	var (
-		client *redis.Client
-		err    error
+		err error
 	)
-	if client, err = catalog.RedisClient(); err != nil {
-		log.Fatalf("Failed to create Redis client: %v", err.Error())
+	if redisClient == nil {
+		if redisClient, err = catalog.RedisClient(); err != nil {
+			log.Fatalf("Failed to create Redis client: %v", err.Error())
+		}
 	}
-	defer client.Close()
-	if info := client.Info(); info.Err() == nil {
+	defer redisClient.Close()
+	if info := redisClient.Info(); info.Err() == nil {
 		router := mux.NewRouter()
 
 		router.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
@@ -131,6 +132,6 @@ var serveCmd = &cobra.Command{
 	Long: `
 Serve the image catalog`,
 	Run: func(cmd *cobra.Command, args []string) {
-		serve()
+		serve(nil)
 	},
 }

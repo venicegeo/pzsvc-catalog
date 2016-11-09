@@ -14,6 +14,7 @@
 
 package cmd
 
+/*
 import (
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 	//"github.com/venicegeo/pzsvc-lib"
@@ -25,9 +26,10 @@ import (
 func TestServe(t *testing.T) {
 	catalog.SetMockConnCount(0)
 	outputs := []string{}
-	catalog.MakeMockRedisCli(outputs)
+	redisClient := catalog.MakeMockRedisCli(outputs)
 	//taskChan = make(chan string)
 	os.Setenv("VCAP_SERVICES", "{\"p-redis\":[{\"credentials\":{\"host\":\"127.0.0.1\",\"port\":6379}}]}")
 	os.Setenv("PL_API_KEY", "a1fa3d8df30545468052e45ae9e4520e")
-	serve()
+	serve(redisClient)
 }
+*/
