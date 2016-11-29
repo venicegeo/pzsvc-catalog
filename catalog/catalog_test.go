@@ -15,9 +15,10 @@
 package catalog
 
 import (
-	"github.com/venicegeo/geojson-go/geojson"
 	"os"
 	"testing"
+
+	"github.com/venicegeo/geojson-go/geojson"
 	//"time"
 )
 
@@ -160,18 +161,18 @@ func TestGetResults(t *testing.T) {
 		outputs := []string{
 			RedisConvInt(2),
 			RedisConvInt(2),
-			RedusConvArray(),
-			RedusConvArray(),
+			RedisConvArray(),
+			RedisConvArray(),
 			RedisConvInt(2),
 			RedisConvInt(2),
 			RedisConvInt(2),
-			RedusConvArray(),
+			RedisConvArray(),
 			RedisConvInt(2),
-			RedusConvArray(),
+			RedisConvArray(),
 			RedisConvInt(2),
-			RedusConvArray(),
+			RedisConvArray(),
 			RedisConvInt(0),
-			RedusConvArray(),
+			RedisConvArray(),
 			RedisConvInt(-1),
 		}
 		client = MakeMockRedisCli(outputs)
@@ -203,18 +204,18 @@ func TestGetScenes(t *testing.T) {
 		outputs := []string{
 			RedisConvInt(2),
 			RedisConvInt(2),
-			RedusConvArray(),
-			RedusConvArray(),
+			RedisConvArray(),
+			RedisConvArray(),
 			RedisConvInt(2),
 			RedisConvInt(2),
 			RedisConvInt(2),
-			RedusConvArray(),
+			RedisConvArray(),
 			RedisConvInt(2),
-			RedusConvArray(),
+			RedisConvArray(),
 			RedisConvInt(2),
-			RedusConvArray(),
+			RedisConvArray(),
 			RedisConvInt(0),
-			RedusConvArray(),
+			RedisConvArray(),
 			RedisConvInt(-1),
 		}
 		client = MakeMockRedisCli(outputs)
@@ -235,15 +236,15 @@ func TestCompleteCache(t *testing.T) {
 
 	outputs := []string{
 		RedisConvInt(2),
-		RedusConvArray(),
-		RedusConvArray(),
-		RedusConvArray(),
+		RedisConvArray(),
+		RedisConvArray(),
+		RedisConvArray(),
 		RedisConvInt(2),
-		RedusConvArray(),
+		RedisConvArray(),
 		RedisConvInt(2),
-		RedusConvArray(),
+		RedisConvArray(),
 		RedisConvInt(0),
-		RedusConvArray(),
+		RedisConvArray(),
 		RedisConvInt(-1),
 	}
 	client = MakeMockRedisCli(outputs)
@@ -263,7 +264,7 @@ func TestPopulateCachet(t *testing.T) {
 	for _, feature := range geoFeatureArray {
 		SetMockConnCount(0)
 		outputs := []string{
-			RedusConvArray(),
+			RedisConvArray(),
 			RedisConvInt(0),
 			RedisConvString("Alrite,ok,no,22"),
 		}

@@ -16,9 +16,10 @@ package catalog
 
 import (
 	"fmt"
-	"gopkg.in/redis.v3"
 	"net"
 	"time"
+
+	"gopkg.in/redis.v3"
 )
 
 var mockConnOutpBytes [][]byte
@@ -143,6 +144,8 @@ func RedisConvString(val string) string {
 func RedisConvErrStr(val string) string {
 	return fmt.Sprintf("-%s\r\n", val)
 }
-func RedusConvArray() string {
+
+// RedisConvArray returns a specific string for testing purposes
+func RedisConvArray() string {
 	return "*0\r\n"
 }
