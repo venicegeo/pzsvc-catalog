@@ -44,6 +44,7 @@ type SearchOptions struct {
 	MaximumIndex int
 	Count        int
 	Rigorous     bool
+	PlanetKey    string
 }
 
 // SetImageCatalogPrefix sets the prefix for this instance

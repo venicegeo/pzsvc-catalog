@@ -50,6 +50,7 @@ func serve(redisClient *redis.Client) {
 		router.HandleFunc("/dropIndex", dropIndexHandler)
 		router.HandleFunc("/eventTypeID", eventTypeIDHandler)
 		router.HandleFunc("/image/{id}", imageHandler)
+		router.HandleFunc("/discoverPlanet", discoverPlanetHandler)
 		router.HandleFunc("/discover", discoverHandler)
 		router.HandleFunc("/planet", planetHandler)
 		router.HandleFunc("/planet/{key}", planetRecurringHandler)

@@ -23,6 +23,7 @@ import (
 
 	"github.com/venicegeo/geojson-go/geojson"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
+	"github.com/venicegeo/pzsvc-image-catalog/planet"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -60,6 +61,40 @@ func discoverHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
+func discoverPlanetHandler(writer http.ResponseWriter, request *http.Request) {
+	var (
+		responseString string
+		err            error
+		options        *catalog.SearchOptions
+		sf             *geojson.Feature
+	)
+	if pzsvc.Preflight(writer, request) {
+		return
+	}
+
+	if options, err = searchOptions(request); err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if sf, err = searchFeature(request); err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !options.NoCache &&
+		(len(sf.Bbox) == 0) &&
+		(sf.PropertyString("acquiredDate") == "") &&
+		(sf.PropertyString("maxAcquiredDate") == "") {
+		http.Error(writer, "A discovery request must contain at least one of the following:\n* bounding box\n* acquiredDate\n* maxAcquiredDate", http.StatusBadRequest)
+		return
+	}
+	if _, responseString, err = planet.GetScenes(sf, *options); err == nil {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.Write([]byte(responseString))
+	} else {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func searchOptions(request *http.Request) (*catalog.SearchOptions, error) {
 	var (
 		count         int
@@ -67,6 +102,7 @@ func searchOptions(request *http.Request) (*catalog.SearchOptions, error) {
 		err           error
 		parsedCount   int64
 		startIndexI64 int64
+		planetKey     string
 	)
 
 	nocache, _ := strconv.ParseBool(request.FormValue("nocache"))
@@ -88,7 +124,8 @@ func searchOptions(request *http.Request) (*catalog.SearchOptions, error) {
 		MinimumIndex: startIndex,
 		Count:        count,
 		MaximumIndex: startIndex + count - 1,
-		NoCache:      nocache}
+		NoCache:      nocache,
+		PlanetKey:    request.FormValue("PL_API_KEY")}
 	return &options, nil
 }
 
