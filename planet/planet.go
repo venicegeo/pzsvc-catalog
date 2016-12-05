@@ -25,13 +25,18 @@ import (
 	"strings"
 
 	"github.com/venicegeo/geojson-go/geojson"
-	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
 // TODO: pull from environment
 const baseURLString = "https://api.planet.com/"
 
+// SearchOptions are the search options for a quick-search request
+type SearchOptions struct {
+	Tides     bool
+	TidesURL  string
+	PlanetKey string
+}
 type request struct {
 	ItemTypes []string `json:"item_types"`
 	Filter    filter   `json:"filter"`
@@ -139,7 +144,7 @@ type Links struct {
 }
 
 // GetScenes returns a string containing the scenes requested
-func GetScenes(inputFeature *geojson.Feature, options catalog.SearchOptions) (string, error) {
+func GetScenes(inputFeature *geojson.Feature, options SearchOptions) (string, error) {
 	var (
 		err      error
 		response *http.Response

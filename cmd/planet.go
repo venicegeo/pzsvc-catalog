@@ -172,7 +172,7 @@ func activatePlanetHandler(w http.ResponseWriter, r *http.Request) {
 	)
 	vars := mux.Vars(r)
 	key := vars["key"]
-	context.PlanetKey = vars["PL_API_KEY"]
+	context.PlanetKey = r.FormValue("PL_API_KEY")
 	if result, err = planet.Activate(key, context); err == nil {
 		w.Write(result)
 	} else {

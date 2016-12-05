@@ -65,29 +65,24 @@ func discoverPlanetHandler(writer http.ResponseWriter, request *http.Request) {
 	var (
 		responseString string
 		err            error
-		options        *catalog.SearchOptions
 		sf             *geojson.Feature
 	)
 	if pzsvc.Preflight(writer, request) {
 		return
 	}
 
-	if options, err = searchOptions(request); err != nil {
-		http.Error(writer, err.Error(), http.StatusBadRequest)
-		return
-	}
+	tides, _ := strconv.ParseBool(request.FormValue("tides"))
+
+	options := planet.SearchOptions{
+		Tides:     tides,
+		TidesURL:  request.FormValue("tidesURL"),
+		PlanetKey: request.FormValue("PL_API_KEY")}
+
 	if sf, err = searchFeature(request); err != nil {
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if !options.NoCache &&
-		(len(sf.Bbox) == 0) &&
-		(sf.PropertyString("acquiredDate") == "") &&
-		(sf.PropertyString("maxAcquiredDate") == "") {
-		http.Error(writer, "A discovery request must contain at least one of the following:\n* bounding box\n* acquiredDate\n* maxAcquiredDate", http.StatusBadRequest)
-		return
-	}
-	if responseString, err = planet.GetScenes(sf, *options); err == nil {
+	if responseString, err = planet.GetScenes(sf, options); err == nil {
 		writer.Header().Set("Content-Type", "application/json")
 		writer.Write([]byte(responseString))
 	} else {
@@ -123,8 +118,7 @@ func searchOptions(request *http.Request) (*catalog.SearchOptions, error) {
 		MinimumIndex: startIndex,
 		Count:        count,
 		MaximumIndex: startIndex + count - 1,
-		NoCache:      nocache,
-		PlanetKey:    request.FormValue("PL_API_KEY")}
+		NoCache:      nocache}
 	return &options, nil
 }
 

@@ -20,12 +20,11 @@ import (
 	"testing"
 
 	"github.com/venicegeo/geojson-go/geojson"
-	"github.com/venicegeo/pzsvc-image-catalog/catalog"
 )
 
 func TestPlanet(t *testing.T) {
 	var (
-		options  catalog.SearchOptions
+		options  SearchOptions
 		err      error
 		response string
 		pi       interface{}
