@@ -27,5 +27,5 @@ func TestTides(t *testing.T) {
 	if fci, err = geojson.ParseFile("test/fc.geojson"); err != nil {
 		t.Errorf("Expected to load file but received: %v", err.Error())
 	}
-	GetTides(fci.(*geojson.FeatureCollection).Features, context)
+	GetTides(fci.(*geojson.FeatureCollection), context)
 }

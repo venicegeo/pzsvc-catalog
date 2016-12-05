@@ -39,24 +39,21 @@ type tidesIn struct {
 	Map       map[string]*geojson.Feature `json:"-"`
 }
 
-// TideOut is a single tide result
-type TideOut struct {
+type tideOut struct {
 	MinTide  float64 `json:"minimumTide24Hours"`
 	MaxTide  float64 `json:"maximumTide24Hours"`
 	CurrTide float64 `json:"currentTide"`
 }
 
-// TideWrapper is the object that wraps a single tide result
-type TideWrapper struct {
+type tideWrapper struct {
 	Lat     float64 `json:"lat"`
 	Lon     float64 `json:"lon"`
 	Dtg     string  `json:"dtg"`
-	Results TideOut `json:"results"`
+	Results tideOut `json:"results"`
 }
 
-// Out is the output of a GetTides operation
-type Out struct {
-	Locations []TideWrapper `json:"locations"`
+type out struct {
+	Locations []tideWrapper `json:"locations"`
 }
 
 func toTideIn(bbox geojson.BoundingBox, timeStr string) *tideIn {
@@ -100,13 +97,14 @@ func toTidesIn(features []*geojson.Feature) *tidesIn {
 
 // GetTides returns the tide information for the features provided.
 // Features must have a geometry and an acquiredDate property.
-func GetTides(features []*geojson.Feature, context Context) (*Out, error) {
+func GetTides(fc *geojson.FeatureCollection, context Context) (*geojson.FeatureCollection, error) {
 	var (
-		err    error
-		result *Out
+		err   error
+		tides *out
 	)
-	if _, err = pzsvc.ReqByObjJSON("POST", context.TidesURL, "", toTidesIn(features), result); err == nil {
-		return result, nil
+	if _, err = pzsvc.ReqByObjJSON("POST", context.TidesURL, "", toTidesIn(fc.Features), tides); err == nil {
+		// correlate
+		// return result, nil
 	}
 	return nil, err
 
