@@ -113,7 +113,7 @@ func TestIssueEvent(t *testing.T) {
 	for _, feature := range geoFeatureArray {
 		harvOptionHolder.Event = true
 		harvOptionHolder.Reharvest = false
-		harvOptionHolder.PlanetKey = "a1fa3d8df30545468052e45ae9e4520e"
+		harvOptionHolder.PlanetKey = "Enter API Key"
 		harvOptionHolder.PiazzaGateway = "test.com"
 		harvOptionHolder.PiazzaAuthorization = "none"
 		harvOptionHolder.Cap = 2
