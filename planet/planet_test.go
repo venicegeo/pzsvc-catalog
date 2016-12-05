@@ -68,6 +68,11 @@ func TestPlanet(t *testing.T) {
 	if response, err = GetScenes(feature, options); err != nil {
 		t.Errorf("Expected GetScenes to succeed; received: %v", err.Error())
 	}
+	options.Tides = true
+	options.TidesURL = "https://bf-tideprediction.int.geointservices.io/tides"
+	if response, err = GetScenes(feature, options); err != nil {
+		t.Errorf("Expected GetScenes to succeed; received: %v", err.Error())
+	}
 	fmt.Print(response)
 }
 

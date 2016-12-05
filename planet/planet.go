@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/venicegeo/geojson-go/geojson"
+	"github.com/venicegeo/pzsvc-image-catalog/tides"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -190,6 +191,12 @@ func GetScenes(inputFeature *geojson.Feature, options SearchOptions) (string, er
 	fc = fci.(*geojson.FeatureCollection)
 	body, err = geojson.Write(fc)
 	fc = transformFeatureCollection(fc)
+	if options.Tides {
+		context := tides.Context{TidesURL: options.TidesURL}
+		if fc, err = tides.GetTides(fc, context); err != nil {
+			return "", err
+		}
+	}
 	body, err = geojson.Write(fc)
 	return string(body), err
 }
