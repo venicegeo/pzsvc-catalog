@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/venicegeo/pzsvc-image-catalog/catalog"
+	"github.com/venicegeo/pzsvc-image-catalog/planet"
 	"github.com/venicegeo/pzsvc-lib"
 )
 
@@ -160,6 +161,22 @@ func planetRecurringHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	default:
 		http.Error(w, "Operation "+r.Method+" not allowed.", http.StatusMethodNotAllowed)
+	}
+}
+
+func activatePlanetHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		err     error
+		context planet.RequestContext
+		result  []byte
+	)
+	vars := mux.Vars(r)
+	key := vars["key"]
+	context.PlanetKey = vars["PL_API_KEY"]
+	if result, err = planet.Activate(key, context); err == nil {
+		w.Write(result)
+	} else {
+		http.Error(w, "Failed to acquire activation information for "+key+": "+err.Error(), http.StatusBadRequest)
 	}
 }
 

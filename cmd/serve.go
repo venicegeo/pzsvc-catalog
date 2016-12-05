@@ -51,7 +51,7 @@ func serve(redisClient *redis.Client) {
 		router.HandleFunc("/eventTypeID", eventTypeIDHandler)
 		router.HandleFunc("/image/{id}", imageHandler)
 		router.HandleFunc("/planet/discover", discoverPlanetHandler)
-		// router.HandleFunc("/planet/activate/{key}", discoverPlanetHandler)
+		router.HandleFunc("/planet/activate/{key}", activatePlanetHandler)
 		router.HandleFunc("/discover", discoverHandler)
 		router.HandleFunc("/planet", planetHandler)
 		router.HandleFunc("/planet/{key}", planetRecurringHandler)

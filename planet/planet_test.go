@@ -44,7 +44,7 @@ func TestPlanet(t *testing.T) {
       }
 }`
 
-	if _, err = doRequest(doRequestInput{method: "POST", inputURL: "data/v1/quick-search", body: []byte(body), contentType: "application/json"}, doRequestContext{planetKey: options.PlanetKey}); err != nil {
+	if _, err = doRequest(doRequestInput{method: "POST", inputURL: "data/v1/quick-search", body: []byte(body), contentType: "application/json"}, RequestContext{PlanetKey: options.PlanetKey}); err != nil {
 		t.Errorf("Expected request to succeed; received: %v", err.Error())
 	}
 	if pi, err = geojson.ParseFile("test/polygon.geojson"); err == nil {
@@ -70,4 +70,19 @@ func TestPlanet(t *testing.T) {
 		t.Errorf("Expected GetScenes to succeed; received: %v", err.Error())
 	}
 	fmt.Print(response)
+}
+
+func TestActivation(t *testing.T) {
+	var (
+		context  RequestContext
+		response []byte
+		err      error
+	)
+	context.PlanetKey = os.Getenv("PL_API_KEY")
+	id := "20161203_021824_5462311_RapidEye-1"
+	if response, err = Activate(id, context); err != nil {
+		t.Errorf("Failed to activate; received: %v", err.Error())
+	}
+	fmt.Print(string(response))
+
 }

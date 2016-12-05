@@ -69,12 +69,13 @@ type doRequestInput struct {
 	contentType string
 }
 
-type doRequestContext struct {
-	planetKey string
+// RequestContext is the context for Planet Labs requests
+type RequestContext struct {
+	PlanetKey string
 }
 
 // doRequest performs the request
-func doRequest(input doRequestInput, context doRequestContext) (*http.Response, error) {
+func doRequest(input doRequestInput, context RequestContext) (*http.Response, error) {
 	var (
 		request   *http.Request
 		parsedURL *url.URL
@@ -98,7 +99,7 @@ func doRequest(input doRequestInput, context doRequestContext) (*http.Response, 
 		request.Header.Set("Content-Type", input.contentType)
 	}
 
-	request.Header.Set("Authorization", "Basic "+getPlanetAuth(context.planetKey))
+	request.Header.Set("Authorization", "Basic "+getPlanetAuth(context.PlanetKey))
 	return pzsvc.HTTPClient().Do(request)
 }
 
@@ -111,18 +112,27 @@ func getPlanetAuth(key string) string {
 	return result
 }
 
-// Response represents the response JSON structure.
-type Response struct {
-	Count string `json:"auth"`
-	Links Links  `json:"links"`
+// Assets represents the assets available for a scene
+type Assets struct {
+	Analytic    Asset `json:"analytic"`
+	AnalyticXML Asset `json:"analytic_xml"`
+	UDM         Asset `json:"udm"`
+	Visual      Asset `json:"visual"`
+	VisualXML   Asset `json:"visual_xml"`
+}
+
+// Asset represents a single asset available for a scene
+type Asset struct {
+	Links  Links  `json:"_links"`
+	Status string `json:"status"`
+	Type   string `json:"type"`
 }
 
 // Links represents the links JSON structure.
 type Links struct {
-	Self  string `json:"self"`
-	Prev  string `json:"prev"`
-	Next  string `json:"next"`
-	First string `json:"first"`
+	Self     string `json:"_self"`
+	Activate string `json:"activate"`
+	Type     string `json:"type"`
 }
 
 // GetScenes returns a string containing the scenes requested
@@ -161,7 +171,7 @@ func GetScenes(inputFeature *geojson.Feature, options catalog.SearchOptions) (st
 	if body, err = json.Marshal(req); err != nil {
 		return "", err
 	}
-	if response, err = doRequest(doRequestInput{method: "POST", inputURL: "data/v1/quick-search", body: body, contentType: "application/json"}, doRequestContext{planetKey: options.PlanetKey}); err != nil {
+	if response, err = doRequest(doRequestInput{method: "POST", inputURL: "data/v1/quick-search", body: body, contentType: "application/json"}, RequestContext{PlanetKey: options.PlanetKey}); err != nil {
 		return "", err
 	}
 	defer response.Body.Close()
@@ -193,10 +203,32 @@ func transformFeatureCollection(fc *geojson.FeatureCollection) *geojson.FeatureC
 		properties["acquiredDate"] = adString
 		properties["fileFormat"] = "geotiff"
 		properties["sensorName"] = curr.Properties["satellite_id"].(string)
-		feature := geojson.NewFeature(curr.Geometry, curr.Properties["provider"].(string)+id, properties)
+		feature := geojson.NewFeature(curr.Geometry, id, properties)
 		feature.Bbox = curr.ForceBbox()
 		features[inx] = feature
 	}
 	result = geojson.NewFeatureCollection(features)
 	return result
+}
+
+// Activate returns the status of the analytic asset and
+// attempts to activate it if needed
+func Activate(id string, context RequestContext) ([]byte, error) {
+	var (
+		response *http.Response
+		err      error
+		body     []byte
+		assets   Assets
+	)
+	if response, err = doRequest(doRequestInput{method: "GET", inputURL: "data/v1/item-types/REOrthoTile/items/" + id + "/assets/"}, context); err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	body, _ = ioutil.ReadAll(response.Body)
+	if err = json.Unmarshal(body, &assets); err != nil {
+		return nil, err
+	}
+	if assets.Analytic.Status == "inactive" {
+	}
+	return json.Marshal(assets.Analytic)
 }
