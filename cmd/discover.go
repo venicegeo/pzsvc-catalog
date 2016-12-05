@@ -87,7 +87,7 @@ func discoverPlanetHandler(writer http.ResponseWriter, request *http.Request) {
 		http.Error(writer, "A discovery request must contain at least one of the following:\n* bounding box\n* acquiredDate\n* maxAcquiredDate", http.StatusBadRequest)
 		return
 	}
-	if _, responseString, err = planet.GetScenes(sf, *options); err == nil {
+	if responseString, err = planet.GetScenes(sf, *options); err == nil {
 		writer.Header().Set("Content-Type", "application/json")
 		writer.Write([]byte(responseString))
 	} else {
@@ -102,7 +102,6 @@ func searchOptions(request *http.Request) (*catalog.SearchOptions, error) {
 		err           error
 		parsedCount   int64
 		startIndexI64 int64
-		planetKey     string
 	)
 
 	nocache, _ := strconv.ParseBool(request.FormValue("nocache"))

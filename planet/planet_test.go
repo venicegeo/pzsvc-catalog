@@ -15,7 +15,6 @@
 package planet
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -25,10 +24,9 @@ import (
 
 func TestPlanet(t *testing.T) {
 	var (
-		options  catalog.SearchOptions
-		err      error
-		response string
-		pi       interface{}
+		options catalog.SearchOptions
+		err     error
+		pi      interface{}
 	)
 
 	options.PlanetKey = os.Getenv("PL_API_KEY")
@@ -48,11 +46,10 @@ func TestPlanet(t *testing.T) {
 		t.Errorf("Expected request to succeed; received: %v", err.Error())
 	}
 	if pi, err = geojson.ParseFile("test/polygon.geojson"); err == nil {
-		if response, err = GetScenes(geojson.NewFeature(pi, "", nil), options); err != nil {
+		if _, err = GetScenes(geojson.NewFeature(pi, "", nil), options); err != nil {
 			t.Errorf("Expected GetScenes to succeed; received: %v", err.Error())
 		}
 	} else {
 		t.Errorf("Expected to read test polygon; received: %v", err.Error())
 	}
-	fmt.Print(response)
 }

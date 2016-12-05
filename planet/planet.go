@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -43,10 +42,24 @@ type filter struct {
 	Config []interface{} `json:"config"`
 }
 
-type geometryFilter struct {
+type objectFilter struct {
 	Type      string      `json:"type"`
 	FieldName string      `json:"field_name"`
 	Config    interface{} `json:"config"`
+}
+
+type dateConfig struct {
+	GTE string `json:"gte,omitempty"`
+	LTE string `json:"lte,omitempty"`
+	GT  string `json:"gt,omitempty"`
+	LT  string `json:"lt,omitempty"`
+}
+
+type rangeConfig struct {
+	GTE float64 `json:"gte,omitempty"`
+	LTE float64 `json:"lte,omitempty"`
+	GT  float64 `json:"gt,omitempty"`
+	LT  float64 `json:"lt,omitempty"`
 }
 
 type doRequestInput struct {
@@ -86,38 +99,7 @@ func doRequest(input doRequestInput, context doRequestContext) (*http.Response, 
 	}
 
 	request.Header.Set("Authorization", "Basic "+getPlanetAuth(context.planetKey))
-	fmt.Printf("Request: %#v", request)
 	return pzsvc.HTTPClient().Do(request)
-}
-
-// unmarshalResponse parses the response and returns a feature collection
-func unmarshalResponse(response *http.Response) (*geojson.FeatureCollection, error) {
-	var (
-		// unmarshal Response
-		err  error
-		body []byte
-		gj   interface{}
-		fc   *geojson.FeatureCollection
-	)
-	defer response.Body.Close()
-	if body, err = ioutil.ReadAll(response.Body); err != nil {
-		return fc, err
-	}
-
-	// Check for HTTP errors
-	if response.StatusCode < 200 || response.StatusCode > 299 {
-		message := fmt.Sprintf("%v returned %v", response.Request.URL.String(), string(body))
-		return fc, &pzsvc.HTTPError{Message: message, Status: response.StatusCode}
-	}
-
-	// if err = json.Unmarshal(body, &unmarshal); err != nil {
-	// 	return fc, err
-	// }
-	if gj, err = geojson.Parse(body); err != nil {
-		return fc, err
-	}
-	fc = gj.(*geojson.FeatureCollection)
-	return fc, err
 }
 
 func getPlanetAuth(key string) string {
@@ -152,15 +134,29 @@ func GetScenes(inputFeature *geojson.Feature, options catalog.SearchOptions) (st
 		req      request
 		fc       *geojson.FeatureCollection
 		fci      interface{}
-		// polygon  *geojson.Polygon
-		// pi       interface{}
 	)
 
 	req.ItemTypes = append(req.ItemTypes, "REOrthoTile")
 	req.Filter.Type = "AndFilter"
 	req.Filter.Config = make([]interface{}, 0)
 	if inputFeature != nil {
-		req.Filter.Config = append(req.Filter.Config, geometryFilter{Type: "GeometryFilter", FieldName: "geometry", Config: inputFeature.Geometry})
+		if inputFeature.Geometry == nil && inputFeature.Bbox != nil {
+			inputFeature.Geometry = inputFeature.Bbox.Polygon()
+		}
+		if inputFeature.Geometry != nil {
+			req.Filter.Config = append(req.Filter.Config, objectFilter{Type: "GeometryFilter", FieldName: "geometry", Config: inputFeature.Geometry})
+		}
+		acquiredDate := inputFeature.PropertyString("acquiredDate")
+		maxAcquiredDate := inputFeature.PropertyString("maxAcquiredDate")
+		if acquiredDate != "" || maxAcquiredDate != "" {
+			dc := dateConfig{GTE: acquiredDate, LTE: maxAcquiredDate}
+			req.Filter.Config = append(req.Filter.Config, objectFilter{Type: "DateRangeFilter", FieldName: "acquired", Config: dc})
+		}
+		cloudCover := inputFeature.PropertyFloat("cloudCover")
+		if cloudCover > 0 {
+			cc := rangeConfig{LTE: cloudCover}
+			req.Filter.Config = append(req.Filter.Config, objectFilter{Type: "RangeFilter", FieldName: "cloud_cover", Config: cc})
+		}
 	}
 	if body, err = json.Marshal(req); err != nil {
 		return "", err
@@ -177,7 +173,6 @@ func GetScenes(inputFeature *geojson.Feature, options catalog.SearchOptions) (st
 	body, err = geojson.Write(fc)
 	fc = transformFeatureCollection(fc)
 	body, err = geojson.Write(fc)
-	fmt.Print(string(body))
 	return string(body), err
 }
 
@@ -185,7 +180,6 @@ func transformFeatureCollection(fc *geojson.FeatureCollection) *geojson.FeatureC
 	var (
 		result *geojson.FeatureCollection
 	)
-	fmt.Print("1\n")
 	features := make([]*geojson.Feature, len(fc.Features))
 	for inx, curr := range fc.Features {
 		properties := make(map[string]interface{})
