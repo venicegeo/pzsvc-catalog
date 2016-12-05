@@ -32,7 +32,7 @@ func TestServe(t *testing.T) {
 	redisClient := catalog.MakeMockRedisCli(outputs)
 	//taskChan = make(chan string)
 	os.Setenv("VCAP_SERVICES", "{\"p-redis\":[{\"credentials\":{\"host\":\"127.0.0.1\",\"port\":6379}}]}")
-	os.Setenv("PL_API_KEY", "a1fa3d8df30545468052e45ae9e4520e")
+	os.Setenv("PL_API_KEY", "Enter Key")
 
 	conn, _ := net.Dial("tcp", "127.0.0.1:8080")
 	log.
