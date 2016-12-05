@@ -15,6 +15,7 @@
 package planet
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -24,9 +25,10 @@ import (
 
 func TestPlanet(t *testing.T) {
 	var (
-		options catalog.SearchOptions
-		err     error
-		pi      interface{}
+		options  catalog.SearchOptions
+		err      error
+		response string
+		pi       interface{}
 	)
 
 	options.PlanetKey = os.Getenv("PL_API_KEY")
@@ -52,4 +54,20 @@ func TestPlanet(t *testing.T) {
 	} else {
 		t.Errorf("Expected to read test polygon; received: %v", err.Error())
 	}
+	feature := geojson.NewFeature(nil, "", nil)
+	if feature.Bbox, err = geojson.NewBoundingBox("139,50,140,51"); err != nil {
+		t.Errorf("Expected NewBoundingBox to succeed; received: %v", err.Error())
+	}
+	if response, err = GetScenes(feature, options); err != nil {
+		t.Errorf("Expected GetScenes to succeed; received: %v", err.Error())
+	}
+	feature.Properties["cloudCover"] = 0.01
+	if response, err = GetScenes(feature, options); err != nil {
+		t.Errorf("Expected GetScenes to succeed; received: %v", err.Error())
+	}
+	feature.Properties["acquiredDate"] = "2016-01-01T00:00:00Z"
+	if response, err = GetScenes(feature, options); err != nil {
+		t.Errorf("Expected GetScenes to succeed; received: %v", err.Error())
+	}
+	fmt.Print(response)
 }
