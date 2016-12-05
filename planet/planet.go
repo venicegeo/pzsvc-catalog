@@ -123,9 +123,12 @@ type Assets struct {
 
 // Asset represents a single asset available for a scene
 type Asset struct {
-	Links  Links  `json:"_links"`
-	Status string `json:"status"`
-	Type   string `json:"type"`
+	Links       Links    `json:"_links"`
+	Status      string   `json:"status"`
+	Type        string   `json:"type"`
+	Location    string   `json:"location,omitempty"`
+	ExpiresAt   string   `json:"expires_at,omitempty"`
+	Permissions []string `json:"_permissions,omitempty"`
 }
 
 // Links represents the links JSON structure.
@@ -229,6 +232,7 @@ func Activate(id string, context RequestContext) ([]byte, error) {
 		return nil, err
 	}
 	if assets.Analytic.Status == "inactive" {
+		go doRequest(doRequestInput{method: "GET", inputURL: assets.Analytic.Links.Activate}, context)
 	}
 	return json.Marshal(assets.Analytic)
 }
