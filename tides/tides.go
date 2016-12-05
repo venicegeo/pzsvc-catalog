@@ -99,13 +99,23 @@ func toTidesIn(features []*geojson.Feature) *tidesIn {
 // Features must have a geometry and an acquiredDate property.
 func GetTides(fc *geojson.FeatureCollection, context Context) (*geojson.FeatureCollection, error) {
 	var (
-		err   error
-		tides *out
+		err          error
+		tin          *tidesIn
+		tout         out
+		currentScene *geojson.Feature
+		result       *geojson.FeatureCollection
 	)
-	if _, err = pzsvc.ReqByObjJSON("POST", context.TidesURL, "", toTidesIn(fc.Features), tides); err == nil {
-		// correlate
-		// return result, nil
+	tin = toTidesIn(fc.Features)
+	features := make([]*geojson.Feature, len(fc.Features))
+	if _, err = pzsvc.ReqByObjJSON("POST", context.TidesURL, "", tin, &tout); err == nil {
+		for inx, tideObj := range tout.Locations {
+			currentScene = tin.Map[tideObj.Dtg]
+			currentScene.Properties["CurrentTide"] = tideObj.Results.CurrTide
+			currentScene.Properties["24hrMinTide"] = tideObj.Results.MinTide
+			currentScene.Properties["24hrMaxTide"] = tideObj.Results.MaxTide
+			features[inx] = currentScene
+		}
+		result = geojson.NewFeatureCollection(features)
 	}
-	return nil, err
-
+	return result, err
 }

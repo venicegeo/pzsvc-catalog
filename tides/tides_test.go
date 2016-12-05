@@ -14,18 +14,28 @@
 
 package tides
 
-import "testing"
-import "github.com/venicegeo/geojson-go/geojson"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/venicegeo/geojson-go/geojson"
+)
 
 func TestTides(t *testing.T) {
 	var (
 		err     error
 		fci     interface{}
 		context Context
+		fc      *geojson.FeatureCollection
+		bytes   []byte
 	)
-	context.TidesURL = "https://bf-tideprediction.int.geointservices.io/"
+	context.TidesURL = "https://bf-tideprediction.int.geointservices.io/tides"
 	if fci, err = geojson.ParseFile("test/fc.geojson"); err != nil {
 		t.Errorf("Expected to load file but received: %v", err.Error())
 	}
-	GetTides(fci.(*geojson.FeatureCollection), context)
+	if fc, err = GetTides(fci.(*geojson.FeatureCollection), context); err != nil {
+		t.Errorf("Expected GetTides to succeed but received: %v", err.Error())
+	}
+	bytes, err = geojson.Write(fc)
+	fmt.Print(string(bytes))
 }
