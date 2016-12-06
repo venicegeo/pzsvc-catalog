@@ -66,17 +66,27 @@ func discoverPlanetHandler(writer http.ResponseWriter, request *http.Request) {
 		responseString string
 		err            error
 		sf             *geojson.Feature
+		tidesURL       string
+		planetKey      string
 	)
 	if pzsvc.Preflight(writer, request) {
 		return
 	}
 
 	tides, _ := strconv.ParseBool(request.FormValue("tides"))
+	if tides {
+		tidesURL = request.FormValue("tidesURL")
+	}
+	planetKey = request.FormValue("PL_API_KEY")
+	if planetKey == "" {
+		http.Error(writer, "This operation requires a Planet Labs API key.", http.StatusBadRequest)
+		return
+	}
 
 	options := planet.SearchOptions{
 		Tides:     tides,
-		TidesURL:  request.FormValue("tidesURL"),
-		PlanetKey: request.FormValue("PL_API_KEY")}
+		TidesURL:  tidesURL,
+		PlanetKey: planetKey}
 
 	if sf, err = searchFeature(request); err != nil {
 		http.Error(writer, err.Error(), http.StatusBadRequest)

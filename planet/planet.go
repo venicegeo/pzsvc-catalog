@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -244,6 +245,7 @@ func Activate(id string, context RequestContext) ([]byte, error) {
 		return nil, err
 	}
 	if assets.Analytic.Status == "inactive" {
+		log.Printf("Attempting to activate image %v.", id)
 		go doRequest(doRequestInput{method: "GET", inputURL: assets.Analytic.Links.Activate}, context)
 	}
 	return json.Marshal(assets.Analytic)
