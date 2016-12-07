@@ -83,6 +83,7 @@ func discoverPlanetHandler(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	planetKey = request.FormValue("PL_API_KEY")
 	options := planet.SearchOptions{
 		Tides:     tides,
 		TidesURL:  tidesURL,

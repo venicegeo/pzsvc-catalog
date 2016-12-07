@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// @APIVersion 1.0.0
+// @APITitle Piazza Image Catalog
+// @APIDescription Nascent catalog for Beachfront et. al.
+// @Contact jeffy@imagemattersllc.com
+// @License Apache
+
 package main
 
 import "github.com/venicegeo/pzsvc-image-catalog/cmd"

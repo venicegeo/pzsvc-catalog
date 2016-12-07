@@ -164,19 +164,29 @@ func planetRecurringHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func activatePlanetHandler(w http.ResponseWriter, r *http.Request) {
+func activatePlanetHandler(writer http.ResponseWriter, r *http.Request) {
 	var (
 		err     error
 		context planet.RequestContext
 		result  []byte
 	)
 	vars := mux.Vars(r)
-	key := vars["key"]
+	id := vars["id"]
+	if id == "" {
+		http.Error(writer, "This operation requires a Planet Labs image ID.", http.StatusBadRequest)
+		return
+	}
 	context.PlanetKey = r.FormValue("PL_API_KEY")
-	if result, err = planet.Activate(key, context); err == nil {
-		w.Write(result)
+
+	if context.PlanetKey == "" {
+		http.Error(writer, "This operation requires a Planet Labs API key.", http.StatusBadRequest)
+		return
+	}
+
+	if result, err = planet.Activate(id, context); err == nil {
+		writer.Write(result)
 	} else {
-		http.Error(w, "Failed to acquire activation information for "+key+": "+err.Error(), http.StatusBadRequest)
+		http.Error(writer, "Failed to acquire activation information for "+id+": "+err.Error(), http.StatusBadRequest)
 	}
 }
 

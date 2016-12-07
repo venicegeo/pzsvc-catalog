@@ -39,6 +39,7 @@ type SearchOptions struct {
 	TidesURL  string
 	PlanetKey string
 }
+
 type request struct {
 	ItemTypes []string `json:"item_types"`
 	Filter    filter   `json:"filter"`
