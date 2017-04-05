@@ -1,0 +1,19 @@
+package: github.com/venicegeo/pzsvc-image-catalog
+import:
+- package: github.com/gorilla/mux
+  version: 392c28fe23e1c45ddba891b0320b3b5df220beea
+- package: github.com/paulsmith/gogeos
+  version: 21f81b2ea5af44d3f6029cc3e5bbbd26b2425236
+  subpackages:
+  - geos
+- package: github.com/spf13/cobra
+  version: 7aeaa2cce6ae7e18d2a6ee597b60ee137e999bd9
+- package: github.com/venicegeo/geojson-geos-go
+  subpackages:
+  - geojsongeos
+- package: github.com/venicegeo/geojson-go
+  subpackages:
+  - geojson
+- package: github.com/venicegeo/pzsvc-lib
+- package: gopkg.in/redis.v3
+  version: b5e368500d0a508ef8f16e9c2d4025a8a46bcc29
