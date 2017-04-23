@@ -27,7 +27,7 @@ func TestRedisClient(t *testing.T) {
 	client = MakeMockRedisCli(outputs)
 
 	os.Setenv("VCAP_SERVICES", "{\"p-redis\":[{\"credentials\":{\"host\":\"127.0.0.1\",\"port\":6379}}]}")
-	os.Setenv("PL_API_KEY", "a1fa3d8df30545468052e45ae9e4520e")
+	os.Setenv("PL_API_KEY", "Enter API Key")
 	vcapServicesStr := os.Getenv("VCAP_SERVICES")
 	log.Printf("VCAP_SERVICES: %v", vcapServicesStr)
 	var VCapServHolder VcapServices
